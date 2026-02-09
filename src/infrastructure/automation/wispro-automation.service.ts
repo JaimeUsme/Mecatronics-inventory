@@ -63,32 +63,48 @@ export class WisproAutomationService {
       await page.click('input[type="submit"]');
       this.logger.debug('Submit button clicked');
 
-      // 6️⃣ Wait for navigation to complete (con timeout)
+      // 6️⃣ Wait for navigation to complete (con timeout más largo)
       try {
         // Esperar por un cambio de URL significativo (que no sea /sign_in)
-        await Promise.race([
-          page.waitForURL((url) => !url.toString().includes('/sign_in'), { timeout: 10000 }),
-          page.waitForTimeout(10000), // Timeout alternativo
-        ]);
-        this.logger.debug('Navigation detected after submit');
+        await page.waitForURL((url) => !url.toString().includes('/sign_in'), { timeout: 15000 });
+        this.logger.debug('Navigation detected after submit - URL changed');
       } catch (error) {
         this.logger.warn('Timeout esperando navegación después de submit, continuando con validación');
       }
       
-      // Esperar un poco más para que la cookie se establezca
-      await page.waitForTimeout(1000);
+      // Esperar un poco más para que la cookie se establezca completamente
+      await page.waitForTimeout(2000);
 
-      // 7️⃣ Extract cookies from context
+      // 7️⃣ Hacer una petición real dentro del navegador para establecer la sesión
+      // Esto ayuda a asegurar que la cookie de sesión esté completamente establecida
+      try {
+        this.logger.debug('Making test request to /employees to establish session');
+        const response = await page.request.get('https://cloud.wispro.co/employees?locale=es', {
+          timeout: 15000,
+        });
+        this.logger.debug(`Test request status: ${response.status()}`);
+        
+        // Si la respuesta es 200 o 302, la sesión está establecida
+        if (response.status() === 200 || response.status() === 302) {
+          this.logger.debug('Session established successfully via test request');
+        } else {
+          this.logger.warn(`Test request returned status ${response.status()}, session may not be established`);
+        }
+      } catch (error) {
+        this.logger.warn('Error making test request to establish session:', error);
+      }
+
+      // 8️⃣ Extract cookies from context (después de la petición de prueba)
       const playwrightCookies: PlaywrightCookie[] = await context.cookies();
       this.logger.debug(`Extracted ${playwrightCookies.length} cookies`);
 
-      // 8️⃣ Map Playwright cookies to our Cookie type
+      // 9️⃣ Map Playwright cookies to our Cookie type
       const cookies: Cookie[] = playwrightCookies.map((c) => this.mapPlaywrightCookieToCookie(c));
 
-      // 9️⃣ Find _wispro_session_v2 cookie specifically
+      // 🔟 Find _wispro_session_v2 cookie specifically
       let sessionCookie = cookies.find((c) => c.name === '_wispro_session_v2') || null;
 
-      // 1️⃣0️⃣ Validate login success SOLO si NO hay cookie de sesión
+      // 1️⃣1️⃣ Validate login success SOLO si NO hay cookie de sesión
       // 🔴 IMPORTANTE: Ya hemos visto casos donde la URL sigue siendo /sign_in
       // pero la cookie de sesión es válida y la API funciona. Por eso, si hay
       // cookie de sesión, consideramos el login exitoso aunque la URL no cambie.
@@ -101,13 +117,13 @@ export class WisproAutomationService {
         );
       }
 
-      // 1️⃣1️⃣ Navegar a una página interna para asegurar la obtención del CSRF token
+      // 1️⃣2️⃣ Navegar a una página interna para asegurar la obtención del CSRF token
       // A veces el CSRF no está en la página de login, pero sí en páginas internas ya autenticadas
       this.logger.debug('Login exitoso, navegando a /employees para obtener CSRF token');
-      await page.goto('https://cloud.wispro.co/employees?locale=es', { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await page.goto('https://cloud.wispro.co/employees?locale=es', { waitUntil: 'networkidle', timeout: 30000 });
       this.logger.debug(`Current URL after navigating to employees: ${page.url()}`);
 
-      // 1️⃣2️⃣ Re-extraer cookies después de navegar (por si la sesión se actualizó)
+      // 1️⃣3️⃣ Re-extraer cookies después de navegar (por si la sesión se actualizó)
       const refreshedCookies = await context.cookies();
       const refreshedMappedCookies = refreshedCookies.map((c) => this.mapPlaywrightCookieToCookie(c));
       const refreshedSessionCookie = refreshedMappedCookies.find((c) => c.name === '_wispro_session_v2') || null;
@@ -122,7 +138,7 @@ export class WisproAutomationService {
       this.logger.debug(`Session cookie value length: ${sessionCookie?.value?.length || 0}`);
       this.logger.debug(`Session cookie starts with: ${sessionCookie?.value?.substring(0, 20) || 'N/A'}...`);
 
-      // 1️⃣3️⃣ Extract CSRF token (usar cookies refrescadas)
+      // 1️⃣4️⃣ Extract CSRF token (usar cookies refrescadas)
       let csrfToken = await this.extractCsrfToken(page, refreshedCookies || playwrightCookies);
       
       // Log temporal para diagnosticar
@@ -138,7 +154,7 @@ export class WisproAutomationService {
         );
       }
 
-      // 1️⃣4️⃣ Construir resultado final con cookies y credenciales
+      // 1️⃣5️⃣ Construir resultado final con cookies y credenciales
       const result: WisproAuthResult = {
         cookies: refreshedMappedCookies || cookies,
         sessionCookie,
