@@ -34,14 +34,19 @@ import {
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        type: 'mysql',
-        host: configService.get<string>('DB_HOST', 'localhost'),
-        port: configService.get<number>('DB_PORT', 3306),
-        username: configService.get<string>('DB_USERNAME', 'root'),
-        password: configService.get<string>('DB_PASSWORD', ''),
-        database: configService.get<string>('DB_DATABASE', 'Inventory'),
-        entities: [
+      useFactory: (configService: ConfigService) => {
+        const dbSslRaw = configService.get<string>('DB_SSL', 'false');
+        const useDbSsl = ['true', '1', 'yes'].includes(dbSslRaw.toLowerCase());
+
+        return {
+          type: 'mysql',
+          host: configService.get<string>('DB_HOST', 'localhost'),
+          port: configService.get<number>('DB_PORT', 3306),
+          username: configService.get<string>('DB_USERNAME', 'root'),
+          password: configService.get<string>('DB_PASSWORD', ''),
+          database: configService.get<string>('DB_DATABASE', 'Inventory'),
+          ssl: useDbSsl ? { rejectUnauthorized: false } : undefined,
+          entities: [
           Material,
           Location,
           Inventory,
@@ -51,12 +56,13 @@ import {
           Crew,
           CrewMember,
           OrderCrewSnapshot,
-        ],
-        synchronize: false, // Desactivado: usar migraciones SQL manuales
-        logging: configService.get<string>('NODE_ENV') === 'development',
-        migrations: ['dist/infrastructure/persistence/migrations/*.js'],
-        migrationsRun: false,
-      }),
+          ],
+          synchronize: false, // Desactivado: usar migraciones SQL manuales
+          logging: configService.get<string>('NODE_ENV') === 'development',
+          migrations: ['dist/infrastructure/persistence/migrations/*.js'],
+          migrationsRun: false,
+        };
+      },
     }),
     TypeOrmModule.forFeature([
       Material,

@@ -10,16 +10,23 @@ async function bootstrap() {
     logger: ['log', 'error', 'warn', 'debug', 'verbose'], // Habilitar todos los niveles de log
   });
   
+  const corsOriginRaw = process.env.CORS_ORIGIN;
+  const corsOrigin =
+    !corsOriginRaw || corsOriginRaw === '*'
+      ? true
+      : corsOriginRaw.split(',').map((origin) => origin.trim()).filter(Boolean);
+
   // Habilitar CORS
   app.enableCors({
-    origin: true, // Permite todos los orígenes (en producción, especifica los orígenes permitidos)
+    origin: corsOrigin,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
     credentials: true, // Permite enviar cookies y headers de autenticación
   });
   
-  await app.listen(3000);
-  console.log('Application is running on: http://localhost:3000');
+  const port = Number(process.env.PORT) || 3000;
+  await app.listen(port, '0.0.0.0');
+  console.log(`Application is running on: http://0.0.0.0:${port}`);
 }
 bootstrap();
 
