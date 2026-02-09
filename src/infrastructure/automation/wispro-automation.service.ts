@@ -63,7 +63,10 @@ export class WisproAutomationService {
       await page.click('input[type="submit"]');
       this.logger.debug('Submit button clicked');
 
-      // 6️⃣ Wait for navigation to complete (con timeout)
+      // 6️⃣ Esperar a que el login complete: URL cambia o cookie de sesión aparece
+      let sessionCookie: Cookie | null = null;
+      let playwrightCookies: PlaywrightCookie[] = [];
+
       try {
         await page.waitForLoadState('domcontentloaded', { timeout: 15000 });
         this.logger.debug('DOM loaded after submit');
@@ -71,19 +74,52 @@ export class WisproAutomationService {
         this.logger.warn('Timeout esperando DOM después de submit, continuando');
       }
 
-      // 7️⃣ Extract cookies from context
-      const playwrightCookies: PlaywrightCookie[] = await context.cookies();
+      for (let i = 0; i < 20; i += 1) {
+        await page.waitForTimeout(500);
+        playwrightCookies = await context.cookies();
+        const cookies = playwrightCookies.map((c) => this.mapPlaywrightCookieToCookie(c));
+        sessionCookie = cookies.find((c) => c.name === '_wispro_session_v2') || null;
+
+        if (sessionCookie?.value) {
+          break;
+        }
+
+        if (!page.url().includes('/sign_in')) {
+          break;
+        }
+      }
+
+      // Si no hay cookie y seguimos en sign_in, el login no fue exitoso
+      if (!sessionCookie?.value && page.url().includes('/sign_in')) {
+        await this.validateLoginSuccess(page);
+        throw new HttpException(
+          'Credenciales incorrectas. El login de Wispro no se completó.',
+          HttpStatus.UNAUTHORIZED,
+        );
+      }
+
+      // 7️⃣ Navegar a una página interna para validar sesión y obtener CSRF
+      try {
+        await page.goto('https://cloud.wispro.co/employees?locale=es', {
+          waitUntil: 'domcontentloaded',
+          timeout: 30000,
+        });
+      } catch (error) {
+        this.logger.warn('No se pudo navegar a /employees para validar sesión');
+      }
+
+      // 8️⃣ Extract cookies from context (refresco tras navegación interna)
+      playwrightCookies = await context.cookies();
       this.logger.debug(`Extracted ${playwrightCookies.length} cookies`);
 
-      // 8️⃣ Map Playwright cookies to our Cookie type
+      // 9️⃣ Map Playwright cookies to our Cookie type
       const cookies: Cookie[] = playwrightCookies.map((c) => this.mapPlaywrightCookieToCookie(c));
 
-      // 9️⃣ Find _wispro_session_v2 cookie specifically
-      const sessionCookie = cookies.find((c) => c.name === '_wispro_session_v2') || null;
+      // 🔟 Find _wispro_session_v2 cookie specifically
+      sessionCookie = cookies.find((c) => c.name === '_wispro_session_v2') || null;
 
-      // 1️⃣0️⃣ Validate login success only if no session cookie
+      // 1️⃣1️⃣ Validate that we have a session cookie
       if (!sessionCookie || !sessionCookie.value) {
-        await this.validateLoginSuccess(page);
         this.logger.error('No se encontró cookie de sesión después del login');
         throw new HttpException(
           'Credenciales incorrectas o login fallido. No se pudo obtener la cookie de sesión.',
@@ -91,21 +127,13 @@ export class WisproAutomationService {
         );
       }
 
-      // 1️⃣1️⃣ Extract CSRF token
+      // 1️⃣2️⃣ Extract CSRF token
       let csrfToken = await this.extractCsrfToken(page, playwrightCookies);
 
-      // Fallback: si no se encontró CSRF, navegar a una página interna y reintentar
+      // Fallback: si no se encontró CSRF, reintentar con cookies refrescadas
       if (!csrfToken) {
-        try {
-          await page.goto('https://cloud.wispro.co/employees?locale=es', {
-            waitUntil: 'domcontentloaded',
-            timeout: 30000,
-          });
-          const refreshedCookies = await context.cookies();
-          csrfToken = await this.extractCsrfToken(page, refreshedCookies);
-        } catch (error) {
-          this.logger.warn('No se pudo obtener CSRF en fallback de /employees');
-        }
+        const refreshedCookies = await context.cookies();
+        csrfToken = await this.extractCsrfToken(page, refreshedCookies);
       }
 
       const result: WisproAuthResult = {
