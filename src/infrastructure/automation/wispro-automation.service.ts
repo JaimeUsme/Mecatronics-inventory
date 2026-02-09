@@ -92,7 +92,21 @@ export class WisproAutomationService {
       }
 
       // 1️⃣1️⃣ Extract CSRF token
-      const csrfToken = await this.extractCsrfToken(page, playwrightCookies);
+      let csrfToken = await this.extractCsrfToken(page, playwrightCookies);
+
+      // Fallback: si no se encontró CSRF, navegar a una página interna y reintentar
+      if (!csrfToken) {
+        try {
+          await page.goto('https://cloud.wispro.co/employees?locale=es', {
+            waitUntil: 'domcontentloaded',
+            timeout: 30000,
+          });
+          const refreshedCookies = await context.cookies();
+          csrfToken = await this.extractCsrfToken(page, refreshedCookies);
+        } catch (error) {
+          this.logger.warn('No se pudo obtener CSRF en fallback de /employees');
+        }
+      }
 
       const result: WisproAuthResult = {
         cookies,
