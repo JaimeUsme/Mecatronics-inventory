@@ -117,11 +117,22 @@ export class WisproAutomationService {
         );
       }
 
-      // 1️⃣2️⃣ Navegar a una página interna para asegurar la obtención del CSRF token
-      // A veces el CSRF no está en la página de login, pero sí en páginas internas ya autenticadas
-      this.logger.debug('Login exitoso, navegando a /employees para obtener CSRF token');
+      // 1️⃣2️⃣ Navegar a una página interna para validar que el login fue exitoso
+      // Si después de navegar seguimos en /sign_in, significa que las credenciales son incorrectas
+      this.logger.debug('Navegando a /employees para validar login y obtener CSRF token');
       await page.goto('https://cloud.wispro.co/employees?locale=es', { waitUntil: 'networkidle', timeout: 30000 });
-      this.logger.debug(`Current URL after navigating to employees: ${page.url()}`);
+      const finalUrl = page.url();
+      this.logger.debug(`Current URL after navigating to employees: ${finalUrl}`);
+
+      // 🔴 VALIDACIÓN CRÍTICA: Si la URL sigue siendo /sign_in, el login falló
+      if (finalUrl.includes('/sign_in')) {
+        this.logger.error('Login fallido: después de navegar a /employees, la URL sigue siendo /sign_in');
+        await this.validateLoginSuccess(page); // Esto lanzará una excepción con más detalles
+        throw new HttpException(
+          'Credenciales incorrectas. El login de Wispro no fue exitoso.',
+          HttpStatus.UNAUTHORIZED,
+        );
+      }
 
       // 1️⃣3️⃣ Re-extraer cookies después de navegar (por si la sesión se actualizó)
       const refreshedCookies = await context.cookies();
@@ -132,6 +143,13 @@ export class WisproAutomationService {
       if (refreshedSessionCookie?.value) {
         sessionCookie = refreshedSessionCookie;
         this.logger.debug('Using refreshed session cookie after navigation');
+      } else {
+        // Si no hay cookie después de navegar exitosamente, algo está mal
+        this.logger.error('No se encontró cookie de sesión después de navegar exitosamente a /employees');
+        throw new HttpException(
+          'No se pudo obtener la cookie de sesión después del login. La sesión puede ser inválida.',
+          HttpStatus.UNAUTHORIZED,
+        );
       }
 
       // Log temporal para diagnosticar

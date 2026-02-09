@@ -13,6 +13,7 @@ import {
   OrdersModule,
   InventoryModule,
   CrewsModule,
+  StorageModule,
 } from './application/modules';
 import { DatabaseModule } from './infrastructure/persistence/database.module';
 
@@ -31,6 +32,7 @@ import { DatabaseModule } from './infrastructure/persistence/database.module';
     OrdersModule,
     InventoryModule,
     CrewsModule,
+    StorageModule,
   ],
   controllers: [],
   providers: [],

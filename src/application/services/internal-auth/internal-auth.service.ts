@@ -127,6 +127,7 @@ export class InternalAuthService {
             email: user.wisproEmail,
             csrfToken: authResult.csrfToken,
             sessionCookie: authResult.sessionCookie.value,
+            loginSuccess: true, // Login exitoso
           };
         } else {
           this.logger.warn(
@@ -213,6 +214,160 @@ export class InternalAuthService {
       );
       return false;
     }
+  }
+
+  /**
+   * Reintenta la conexión con Wispro para un usuario interno autenticado.
+   * Usa las credenciales de Wispro guardadas en la BD para hacer login
+   * y genera un nuevo JWT con las credenciales de Wispro incluidas.
+   *
+   * @param internalUserId - ID del usuario interno (del JWT)
+   * @returns Nuevo accessToken con credenciales de Wispro, o null si falla
+   */
+  async reconnectWispro(internalUserId: string): Promise<{ accessToken: string | null; success: boolean }> {
+    const user = await this.internalUserRepository.findOne({
+      where: { id: internalUserId },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Usuario interno no encontrado');
+    }
+
+    // Verificar que el usuario tenga credenciales de Wispro configuradas
+    if (!user.wisproEmail || !user.wisproPasswordEncrypted) {
+      this.logger.warn(
+        `Usuario interno ${internalUserId} no tiene credenciales de Wispro configuradas`,
+      );
+      return { accessToken: null, success: false };
+    }
+
+    try {
+      // Intentar login a Wispro con las credenciales guardadas
+      const wisproPassword = this.decryptWisproPassword(user.wisproPasswordEncrypted);
+      const authResult = await this.wisproAutomationService.loginAndExtractAuth({
+        email: user.wisproEmail,
+        password: wisproPassword,
+      });
+
+      if (!authResult?.csrfToken || !authResult.sessionCookie?.value) {
+        this.logger.warn(
+          `Reconexión Wispro fallida para usuario interno ${internalUserId}: no se obtuvieron credenciales válidas`,
+        );
+        return { accessToken: null, success: false };
+      }
+
+      // Generar nuevo JWT con las credenciales de Wispro
+      const payload: any = {
+        sub: user.id,
+        email: user.email,
+        name: user.name,
+        type: 'internal',
+        wispro: {
+          linked: true,
+          email: user.wisproEmail,
+          csrfToken: authResult.csrfToken,
+          sessionCookie: authResult.sessionCookie.value,
+          loginSuccess: true,
+        },
+      };
+
+      const accessToken = this.jwtService.sign(payload);
+      this.logger.log(`Reconexión Wispro exitosa para usuario interno ${internalUserId}`);
+
+      return { accessToken, success: true };
+    } catch (error) {
+      this.logger.warn(
+        `Error al reconectar Wispro para usuario interno ${internalUserId}: ${error?.message}`,
+      );
+      return { accessToken: null, success: false };
+    }
+  }
+
+  /**
+   * Agrega credenciales de Wispro al usuario actual, valida la conexión
+   * y devuelve un nuevo JWT con las credenciales incluidas.
+   *
+   * Si la conexión falla, lanza una excepción y NO guarda las credenciales.
+   * Si la conexión es exitosa, guarda las credenciales y devuelve un nuevo token.
+   *
+   * @param internalUserId - ID del usuario interno (del JWT)
+   * @param wisproEmail - Email de la cuenta de Wispro
+   * @param wisproPasswordPlain - Password de la cuenta de Wispro (sin cifrar)
+   * @returns Nuevo accessToken con credenciales de Wispro
+   * @throws UnauthorizedException si las credenciales son inválidas o el login falla
+   */
+  async addWisproCredentials(
+    internalUserId: string,
+    wisproEmail: string,
+    wisproPasswordPlain: string,
+  ): Promise<{ accessToken: string }> {
+    const user = await this.internalUserRepository.findOne({
+      where: { id: internalUserId },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Usuario interno no encontrado');
+    }
+
+    // Intentar login a Wispro con las credenciales proporcionadas
+    // Si falla, lanzará una excepción y NO guardaremos las credenciales
+    let authResult;
+    try {
+      authResult = await this.wisproAutomationService.loginAndExtractAuth({
+        email: wisproEmail,
+        password: wisproPasswordPlain,
+      });
+
+      if (!authResult?.csrfToken || !authResult.sessionCookie?.value) {
+        this.logger.warn(
+          `Login Wispro fallido para usuario interno ${internalUserId}: no se obtuvieron credenciales válidas`,
+        );
+        throw new UnauthorizedException(
+          'Credenciales de Wispro inválidas. No se pudo establecer la conexión.',
+        );
+      }
+    } catch (error) {
+      // Si es una excepción de UnauthorizedException, la re-lanzamos
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      // Si es otro tipo de error, lo convertimos en UnauthorizedException
+      this.logger.warn(
+        `Error al validar credenciales de Wispro para usuario interno ${internalUserId}: ${error?.message}`,
+      );
+      throw new UnauthorizedException(
+        `No se pudo conectar con Wispro: ${error?.message || 'Error desconocido'}`,
+      );
+    }
+
+    // Si llegamos aquí, el login fue exitoso
+    // Guardar credenciales cifradas de Wispro
+    user.wisproEmail = wisproEmail;
+    user.wisproPasswordEncrypted = this.encryptWisproPassword(wisproPasswordPlain);
+    await this.internalUserRepository.save(user);
+
+    this.logger.log(
+      `Credenciales de Wispro agregadas y validadas correctamente para usuario interno ${internalUserId}`,
+    );
+
+    // Generar nuevo JWT con las credenciales de Wispro
+    const payload: any = {
+      sub: user.id,
+      email: user.email,
+      name: user.name,
+      type: 'internal',
+      wispro: {
+        linked: true,
+        email: user.wisproEmail,
+        csrfToken: authResult.csrfToken,
+        sessionCookie: authResult.sessionCookie.value,
+        loginSuccess: true,
+      },
+    };
+
+    const accessToken = this.jwtService.sign(payload);
+
+    return { accessToken };
   }
 }
 

@@ -43,6 +43,7 @@ export * from './responses/inventory-movement.dto';
 export * from './responses/movements-stats-response.dto';
 export * from './responses/internal-user.dto';
 export * from './responses/internal-login-response.dto';
+export * from './responses/reconnect-wispro-response.dto';
 export * from './responses/profile-response.dto';
 export * from './responses/crew.dto';
 export * from './responses/crew-member.dto';

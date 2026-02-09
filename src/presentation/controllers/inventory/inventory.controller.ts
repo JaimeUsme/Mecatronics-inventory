@@ -3,8 +3,10 @@
  * 
  * Controlador que expone los endpoints relacionados con inventario.
  */
-import { Controller, Post, Get, Delete, Body, Param, HttpCode, HttpStatus, Query, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Delete, Body, Param, HttpCode, HttpStatus, Query, UseGuards, UseInterceptors, UploadedFiles } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import { InventoryService } from '@application/services/inventory';
+import { UploadImageUseCase } from '@application/use-cases/upload-image.use-case';
 import {
   TransferMaterialRequestDto,
   ConsumeMaterialRequestDto,
@@ -33,6 +35,7 @@ export class InventoryController {
   constructor(
     private readonly inventoryService: InventoryService,
     private readonly getCurrentUserUseCase: GetCurrentUserUseCase,
+    private readonly uploadImageUseCase: UploadImageUseCase,
   ) {}
 
   /**
@@ -203,17 +206,57 @@ export class InventoryController {
    * Crea un nuevo material
    * 
    * POST /inventory/materials
+   * 
+   * Acepta un formulario multipart con:
+   * - name: string (requerido)
+   * - unit: string (requerido)
+   * - minStock: number (opcional, default: 0)
+   * - category: string (opcional, default: 'GENERAL')
+   * - ownershipType: 'TECHNICIAN' | 'CREW' (opcional, default: 'TECHNICIAN')
+   * - images: File[] (opcional, múltiples archivos)
+   * 
+   * Las imágenes se suben a Google Cloud Storage y se guardan las URLs en el material.
    */
   @Post('materials')
+  @UseInterceptors(FilesInterceptor('images', 10)) // Máximo 10 imágenes
   @HttpCode(HttpStatus.CREATED)
-  async createMaterial(@Body() dto: CreateMaterialRequestDto): Promise<MaterialDto> {
+  async createMaterial(
+    @Body() dto: CreateMaterialRequestDto,
+    @UploadedFiles() files?: Express.Multer.File[],
+  ): Promise<MaterialDto> {
+    // Subir imágenes a GCS si se proporcionaron
+    let imageUrls: string[] = [];
+    
+    if (files && files.length > 0) {
+      try {
+        // Subir todas las imágenes en paralelo
+        const uploadPromises = files.map((file) =>
+          this.uploadImageUseCase.execute({
+            buffer: file.buffer,
+            originalName: file.originalname,
+            mimeType: file.mimetype,
+          }),
+        );
+        
+        imageUrls = await Promise.all(uploadPromises);
+      } catch (error) {
+        throw new BadRequestException(
+          `Error al subir imágenes: ${error?.message || 'Error desconocido'}`,
+        );
+      }
+    }
+
+    // Si se proporcionaron URLs en el DTO, combinarlas con las subidas
+    const allImageUrls = [...imageUrls, ...(dto.images || [])];
+
     const material = await this.inventoryService.createMaterial(
       dto.name,
       dto.unit,
       dto.minStock,
       dto.category,
-      dto.images,
+      allImageUrls.length > 0 ? allImageUrls : undefined,
     );
+    
     return {
       id: material.id,
       name: material.name,

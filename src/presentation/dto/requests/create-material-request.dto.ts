@@ -2,9 +2,10 @@
  * Create Material Request DTO
  * 
  * DTO para la creación de un nuevo material.
+ * Soporta tanto JSON como multipart/form-data (para subir imágenes).
  */
 import { IsString, IsNotEmpty, MaxLength, IsOptional, IsNumber, Min, IsArray } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 
 export class CreateMaterialRequestDto {
   @IsString()
@@ -18,7 +19,11 @@ export class CreateMaterialRequestDto {
   unit: string; // Ej: "unidad", "metro", "kg", "litro"
 
   @IsOptional()
-  @Type(() => Number)
+  @Transform(({ value }) => {
+    if (value === undefined || value === null || value === '') return 0;
+    const num = Number(value);
+    return isNaN(num) ? 0 : num;
+  })
   @IsNumber()
   @Min(0)
   minStock?: number = 0;
@@ -31,6 +36,17 @@ export class CreateMaterialRequestDto {
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  images?: string[]; // Array de rutas/URLs de imágenes
+  @Transform(({ value }) => {
+    // Si viene como string (multipart/form-data), intentar parsearlo como JSON
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value);
+      } catch {
+        return [value]; // Si no es JSON válido, tratarlo como un solo string
+      }
+    }
+    return value;
+  })
+  images?: string[]; // Array de rutas/URLs de imágenes (opcional, también se pueden subir como archivos)
 }
 

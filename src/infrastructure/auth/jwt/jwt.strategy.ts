@@ -36,10 +36,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     // Caso B: token interno de Mecatronics con sección wispro válida
+    // Solo aceptar si loginSuccess es explícitamente true
     if (
       payload.type === 'internal' &&
       payload.wispro &&
       payload.wispro.linked &&
+      payload.wispro.loginSuccess === true &&
       payload.wispro.csrfToken &&
       payload.wispro.sessionCookie
     ) {
@@ -54,6 +56,21 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         csrfToken: payload.wispro.csrfToken,
         sessionCookie: payload.wispro.sessionCookie,
       };
+    }
+
+    // Si tiene credenciales pero loginSuccess no es true, rechazar
+    if (
+      payload.type === 'internal' &&
+      payload.wispro &&
+      payload.wispro.linked &&
+      (payload.wispro.loginSuccess === false || payload.wispro.loginSuccess === undefined)
+    ) {
+      this.logger.warn(
+        `Token interno con Wispro vinculado pero login fallido o no exitoso para usuario: ${payload.sub}`,
+      );
+      throw new UnauthorizedException(
+        'Token inválido: las credenciales de Wispro no son válidas. Usa /internal-auth/reconnect-wispro para reconectar.',
+      );
     }
 
     // Si llega aquí, no hay credenciales de Wispro válidas

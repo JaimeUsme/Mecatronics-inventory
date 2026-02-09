@@ -112,9 +112,11 @@ export class GetProfileUseCase {
     // Caso 2: Token interno con Wispro vinculado
     if (jwtPayload.type === 'internal' && jwtPayload.wispro) {
       const wispro = jwtPayload.wispro;
+      // isConnected solo es true si loginSuccess es explícitamente true
+      // y tiene credenciales válidas (csrfToken y sessionCookie)
       const isConnected =
-        wispro.linked &&
-        wispro.loginSuccess !== false &&
+        wispro.linked === true &&
+        wispro.loginSuccess === true &&
         !!wispro.csrfToken &&
         !!wispro.sessionCookie;
 

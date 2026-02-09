@@ -3,7 +3,7 @@
  *
  * Endpoints de autenticación interna (no dependen de Wispro).
  */
-import { Controller, Post, Body, HttpCode, HttpStatus, Headers } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, HttpStatus, Headers, UseGuards } from '@nestjs/common';
 import { InternalAuthService } from '@application/services/internal-auth';
 import {
   RegisterInternalUserRequestDto,
@@ -11,7 +11,11 @@ import {
   LinkWisproRequestDto,
   InternalUserDto,
   InternalLoginResponseDto,
+  ReconnectWisproResponseDto,
 } from '@presentation/dto';
+import { JwtPermissiveGuard } from '@presentation/guards/jwt-permissive.guard';
+import { CurrentUser } from '@presentation/decorators';
+import { JwtPayload } from '@infrastructure/auth/jwt';
 
 @Controller('internal-auth')
 export class InternalAuthController {
@@ -98,6 +102,85 @@ export class InternalAuthController {
       dto.wisproPassword,
     );
     return { linked };
+  }
+
+  /**
+   * Reintenta la conexión con Wispro para el usuario autenticado.
+   *
+   * POST /internal-auth/reconnect-wispro
+   *
+   * Requiere: Authorization: Bearer <token-interno>
+   *
+   * Este endpoint intenta hacer login a Wispro usando las credenciales
+   * guardadas del usuario. Si es exitoso, devuelve un nuevo JWT con las
+   * credenciales de Wispro incluidas. Si falla, devuelve success: false.
+   *
+   * @param user - Payload del JWT token (inyectado automáticamente por el guard)
+   * @returns Nuevo accessToken con credenciales de Wispro, o null si falla
+   */
+  @Post('reconnect-wispro')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtPermissiveGuard) // Permite tokens sin credenciales de Wispro
+  async reconnectWispro(
+    @CurrentUser() user: JwtPayload,
+  ): Promise<ReconnectWisproResponseDto> {
+    const internalUserId = user.sub;
+
+    const result = await this.internalAuthService.reconnectWispro(internalUserId);
+
+    if (!result.success) {
+      return {
+        accessToken: null,
+        success: false,
+        message: 'No se pudo reconectar con Wispro. Verifica que las credenciales estén correctas.',
+      };
+    }
+
+    return {
+      accessToken: result.accessToken,
+      success: true,
+      message: 'Reconexión exitosa con Wispro.',
+    };
+  }
+
+  /**
+   * Agrega credenciales de Wispro al usuario actual, valida la conexión
+   * y devuelve un nuevo JWT con las credenciales incluidas.
+   *
+   * POST /internal-auth/add-wispro-credentials
+   *
+   * Requiere: Authorization: Bearer <token-interno>
+   *
+   * Este endpoint intenta hacer login a Wispro con las credenciales proporcionadas.
+   * Si la conexión falla, devuelve un error HTTP y NO guarda las credenciales.
+   * Si la conexión es exitosa, guarda las credenciales en la BD y devuelve un nuevo JWT.
+   *
+   * @param user - Payload del JWT token (inyectado automáticamente por el guard)
+   * @param dto - Credenciales de Wispro (email y password)
+   * @returns Nuevo accessToken con credenciales de Wispro incluidas
+   * @throws UnauthorizedException si las credenciales son inválidas o el login falla
+   */
+  @Post('add-wispro-credentials')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtPermissiveGuard) // Permite tokens sin credenciales de Wispro
+  async addWisproCredentials(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: LinkWisproRequestDto,
+  ): Promise<ReconnectWisproResponseDto> {
+    const internalUserId = user.sub;
+
+    // Este método lanzará una excepción si las credenciales son inválidas
+    const result = await this.internalAuthService.addWisproCredentials(
+      internalUserId,
+      dto.wisproEmail,
+      dto.wisproPassword,
+    );
+
+    return {
+      accessToken: result.accessToken,
+      success: true,
+      message: 'Credenciales de Wispro agregadas y validadas correctamente.',
+    };
   }
 }
 
