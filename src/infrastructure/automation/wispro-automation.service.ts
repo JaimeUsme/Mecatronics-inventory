@@ -29,9 +29,14 @@ export class WisproAutomationService {
       this.logger.log('Starting Wispro automation login process');
 
       // 1️⃣ Launch headless browser
+      const proxy = this.getProxyOptions();
+      if (proxy) {
+        this.logger.log(`Using proxy for Wispro login: ${proxy.server}`);
+      }
       browser = await chromium.launch({
         headless: true,
         args: ['--no-sandbox', '--disable-dev-shm-usage'],
+        proxy: proxy || undefined,
       });
       const context: BrowserContext = await browser.newContext({
         userAgent:
@@ -289,12 +294,32 @@ export class WisproAutomationService {
         `Login form not found. url=${url} title=${title} possibleBlock=${possibleBlock} snippet="${snippet}"`,
       );
 
-      throw new HttpException(
-        possibleBlock
-          ? 'El login de Wispro fue bloqueado (WAF/Captcha). Intenta nuevamente o usa credenciales manuales.'
-          : 'No se encontró el formulario de login de Wispro. Verifica el acceso desde Cloud Run.',
-        HttpStatus.SERVICE_UNAVAILABLE,
-      );
+      const message = possibleBlock
+        ? `El login de Wispro fue bloqueado (WAF/Captcha). url=${url} title=${title}`
+        : `No se encontró el formulario de login de Wispro. url=${url} title=${title}`;
+
+      throw new HttpException(message, HttpStatus.SERVICE_UNAVAILABLE);
+    }
+  }
+
+  /**
+   * Obtiene configuración de proxy desde variables de entorno.
+   * WISPRO_PROXY puede ser: http://user:pass@host:port
+   */
+  private getProxyOptions(): { server: string; username?: string; password?: string } | null {
+    const raw = process.env.WISPRO_PROXY;
+    if (!raw) {
+      return null;
+    }
+    try {
+      const url = new URL(raw);
+      const server = `${url.protocol}//${url.host}`;
+      const username = url.username || undefined;
+      const password = url.password || undefined;
+      return { server, username, password };
+    } catch (error) {
+      this.logger.warn('WISPRO_PROXY inválido. Debe ser un URL válido.');
+      return null;
     }
   }
 }
