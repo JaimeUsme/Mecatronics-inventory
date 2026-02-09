@@ -1,0 +1,12 @@
+/**
+ * Custom Validators
+ * 
+ * Reusable validation functions and custom validators
+ * that can be used in DTOs and services.
+ * 
+ * Example structure:
+ * - email.validator.ts
+ * - password.validator.ts
+ * - custom-validators.ts
+ */
+

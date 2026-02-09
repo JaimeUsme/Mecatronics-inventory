@@ -1,0 +1,11 @@
+/**
+ * Application Services
+ * 
+ * Services that coordinate multiple use cases or provide cross-cutting
+ * application-level functionality. They may combine multiple domain services.
+ * 
+ * Example structure:
+ * - AuthenticationApplicationService.ts
+ * - SessionManagementService.ts
+ */
+

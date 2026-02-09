@@ -1,0 +1,15 @@
+/**
+ * Adapters (Infrastructure Implementations)
+ * 
+ * Concrete implementations of domain interfaces (ports).
+ * These adapters connect the domain layer to external concerns like databases,
+ * file systems, or external APIs.
+ * 
+ * Example structure:
+ * - repositories/
+ *   - UserRepository.ts (implements IUserRepository)
+ *   - SessionRepository.ts (implements ISessionRepository)
+ * - services/
+ *   - EmailService.ts (implements IEmailService)
+ */
+

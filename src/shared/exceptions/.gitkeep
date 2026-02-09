@@ -1,0 +1,13 @@
+/**
+ * Shared Exceptions
+ * 
+ * Base exception classes and common exceptions used across
+ * the application. These provide consistent error handling.
+ * 
+ * Example structure:
+ * - BaseException.ts
+ * - NotFoundException.ts
+ * - BadRequestException.ts
+ * - UnauthorizedException.ts
+ */
+

@@ -1,0 +1,13 @@
+/**
+ * Repository Interfaces (Ports)
+ * 
+ * These interfaces define contracts for data access operations.
+ * They belong to the domain layer and are implemented in the infrastructure layer.
+ * This follows the Dependency Inversion Principle.
+ * 
+ * Example structure:
+ * - IUserRepository.ts
+ * - ISessionRepository.ts
+ * - IAuthenticationRepository.ts
+ */
+

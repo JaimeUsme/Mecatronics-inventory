@@ -1,0 +1,12 @@
+/**
+ * Interceptors
+ * 
+ * Interceptors that transform requests and responses.
+ * They can be used for logging, caching, response transformation, etc.
+ * 
+ * Example structure:
+ * - LoggingInterceptor.ts
+ * - TransformInterceptor.ts
+ * - CacheInterceptor.ts
+ */
+

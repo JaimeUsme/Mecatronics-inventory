@@ -1,0 +1,17 @@
+/**
+ * Controllers
+ * 
+ * HTTP controllers that handle incoming requests and delegate
+ * to application use cases. They are responsible for:
+ * - Request validation
+ * - Response formatting
+ * - HTTP status codes
+ * - Error handling
+ * 
+ * Example structure:
+ * - authentication/
+ *   - authentication.controller.ts
+ * - session/
+ *   - session.controller.ts
+ */
+

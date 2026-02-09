@@ -1,0 +1,12 @@
+/**
+ * Constants
+ * 
+ * Application-wide constants, enums, and configuration values
+ * that are used across multiple layers.
+ * 
+ * Example structure:
+ * - http-status.constants.ts
+ * - error-messages.constants.ts
+ * - app.constants.ts
+ */
+

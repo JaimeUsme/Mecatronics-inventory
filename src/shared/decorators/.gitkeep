@@ -1,0 +1,11 @@
+/**
+ * Shared Decorators
+ * 
+ * Reusable decorators that can be used across different layers
+ * for cross-cutting concerns like logging, caching, etc.
+ * 
+ * Example structure:
+ * - LogMethod.decorator.ts
+ * - MeasureExecution.decorator.ts
+ */
+

@@ -1,0 +1,12 @@
+/**
+ * Domain Services
+ * 
+ * Services containing business logic that doesn't naturally fit
+ * within a single entity. These services operate on domain objects
+ * and enforce business rules.
+ * 
+ * Example structure:
+ * - AuthenticationDomainService.ts
+ * - SessionValidationService.ts
+ */
+

@@ -1,0 +1,11 @@
+/**
+ * Infrastructure Configuration
+ * 
+ * Configuration files specific to infrastructure concerns,
+ * such as database connections, external service URLs, etc.
+ * 
+ * Example structure:
+ * - database.config.ts
+ * - external-services.config.ts
+ */
+

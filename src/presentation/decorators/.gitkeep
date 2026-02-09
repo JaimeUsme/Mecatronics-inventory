@@ -1,0 +1,12 @@
+/**
+ * Custom Decorators
+ * 
+ * Reusable decorators for controllers and services.
+ * These can include logging, caching, authorization, etc.
+ * 
+ * Example structure:
+ * - LogExecution.decorator.ts
+ * - CacheResponse.decorator.ts
+ * - PublicRoute.decorator.ts
+ */
+

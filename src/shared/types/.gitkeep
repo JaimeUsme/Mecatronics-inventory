@@ -1,0 +1,12 @@
+/**
+ * Shared Types
+ * 
+ * Common TypeScript types, interfaces, and type utilities
+ * that are used across multiple layers.
+ * 
+ * Example structure:
+ * - common.types.ts
+ * - api.types.ts
+ * - generic.types.ts
+ */
+

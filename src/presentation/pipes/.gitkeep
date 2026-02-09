@@ -1,0 +1,12 @@
+/**
+ * Pipes
+ * 
+ * Pipes for validation and transformation of input data.
+ * They run before the route handler and can transform or validate data.
+ * 
+ * Example structure:
+ * - ValidationPipe.ts (custom)
+ * - ParseIntPipe.ts (custom)
+ * - TrimPipe.ts
+ */
+

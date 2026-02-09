@@ -1,0 +1,12 @@
+/**
+ * Domain Exceptions
+ * 
+ * Custom exceptions specific to the domain layer.
+ * These exceptions represent business rule violations and domain errors.
+ * 
+ * Example structure:
+ * - InvalidCredentialsException.ts
+ * - SessionExpiredException.ts
+ * - AuthenticationFailedException.ts
+ */
+

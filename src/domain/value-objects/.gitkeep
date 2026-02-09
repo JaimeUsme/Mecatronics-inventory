@@ -1,0 +1,14 @@
+/**
+ * Value Objects
+ * 
+ * Immutable objects that represent domain concepts without identity.
+ * They are defined by their attributes and are used to encapsulate
+ * domain logic and validation.
+ * 
+ * Example structure:
+ * - Email.ts
+ * - Password.ts
+ * - CsrfToken.ts
+ * - SessionCookie.ts
+ */
+

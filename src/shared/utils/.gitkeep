@@ -1,0 +1,13 @@
+/**
+ * Utility Functions
+ * 
+ * Reusable utility functions and helpers that don't belong
+ * to any specific domain or layer.
+ * 
+ * Example structure:
+ * - date.utils.ts
+ * - string.utils.ts
+ * - validation.utils.ts
+ * - encryption.utils.ts
+ */
+

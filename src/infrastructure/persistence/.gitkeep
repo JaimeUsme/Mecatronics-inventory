@@ -1,0 +1,15 @@
+/**
+ * Persistence Layer
+ * 
+ * Database configurations, ORM setups, and data access implementations.
+ * This includes database connections, migrations, and entity mappings.
+ * 
+ * Example structure:
+ * - database/
+ *   - database.module.ts
+ *   - database.providers.ts
+ * - entities/
+ *   - UserEntity.ts (database entity, different from domain entity)
+ * - migrations/
+ */
+

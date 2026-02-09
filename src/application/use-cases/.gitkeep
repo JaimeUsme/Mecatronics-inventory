@@ -1,0 +1,16 @@
+/**
+ * Use Cases (Application Services)
+ * 
+ * Each use case represents a single business operation or user story.
+ * They orchestrate domain services and repositories to fulfill specific requirements.
+ * 
+ * Example structure:
+ * - authentication/
+ *   - LoginUseCase.ts
+ *   - LogoutUseCase.ts
+ *   - RefreshTokenUseCase.ts
+ * - session/
+ *   - GetSessionUseCase.ts
+ *   - ValidateSessionUseCase.ts
+ */
+

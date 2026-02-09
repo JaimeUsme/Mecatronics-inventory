@@ -1,0 +1,13 @@
+/**
+ * Domain Entities
+ * 
+ * Pure domain models representing core business concepts.
+ * These entities contain business logic and validation rules.
+ * They are framework-agnostic and should not depend on external libraries.
+ * 
+ * Example structure:
+ * - User.ts
+ * - Session.ts
+ * - AuthenticationToken.ts
+ */
+

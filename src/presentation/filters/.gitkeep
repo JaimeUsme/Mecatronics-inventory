@@ -1,0 +1,12 @@
+/**
+ * Exception Filters
+ * 
+ * Global and specific exception filters that handle errors
+ * and format error responses consistently across the API.
+ * 
+ * Example structure:
+ * - HttpExceptionFilter.ts
+ * - AllExceptionsFilter.ts
+ * - ValidationExceptionFilter.ts
+ */
+

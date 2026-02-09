@@ -1,0 +1,13 @@
+/**
+ * Mappers
+ * 
+ * Converters between domain entities and DTOs.
+ * These mappers ensure proper transformation of data between layers
+ * while maintaining separation of concerns.
+ * 
+ * Example structure:
+ * - UserMapper.ts
+ * - SessionMapper.ts
+ * - AuthenticationMapper.ts
+ */
+

@@ -1,0 +1,16 @@
+/**
+ * Presentation DTOs
+ * 
+ * Data Transfer Objects for API requests and responses.
+ * These DTOs define the contract between the API and external clients.
+ * They may include validation decorators and transformation logic.
+ * 
+ * Example structure:
+ * - requests/
+ *   - LoginRequestDto.ts
+ *   - CreateSessionRequestDto.ts
+ * - responses/
+ *   - AuthenticationResponseDto.ts
+ *   - SessionResponseDto.ts
+ */
+

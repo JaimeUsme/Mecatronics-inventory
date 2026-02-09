@@ -1,0 +1,13 @@
+/**
+ * Application DTOs
+ * 
+ * Data Transfer Objects used in the application layer.
+ * These DTOs are used for communication between layers and may differ
+ * from domain entities to decouple the application from domain models.
+ * 
+ * Example structure:
+ * - LoginDto.ts
+ * - SessionDto.ts
+ * - AuthenticationResponseDto.ts
+ */
+

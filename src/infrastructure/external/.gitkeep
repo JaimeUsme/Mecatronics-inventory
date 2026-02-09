@@ -1,0 +1,15 @@
+/**
+ * External Services
+ * 
+ * Clients and integrations with external APIs and third-party services.
+ * These modules handle HTTP clients, webhooks, and external service communication.
+ * 
+ * Example structure:
+ * - wispro/
+ *   - WisproApiClient.ts
+ *   - WisproHttpClient.ts
+ * - http/
+ *   - HttpClient.ts
+ *   - HttpModule.ts
+ */
+
