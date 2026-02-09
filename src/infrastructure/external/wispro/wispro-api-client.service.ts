@@ -69,6 +69,12 @@ export class WisproApiClientService {
       // Usar la cookie directamente del JWT (ya viene URL-encoded, no necesita decodificación)
       const cookieHeaderValue = credentials.sessionCookie;
       
+      // Log temporal para diagnosticar
+      this.logger.debug(`Cookie from JWT length: ${cookieHeaderValue?.length || 0}`);
+      this.logger.debug(`Cookie from JWT starts with: ${cookieHeaderValue?.substring(0, 20) || 'N/A'}...`);
+      this.logger.debug(`CSRF from JWT length: ${credentials.csrfToken?.length || 0}`);
+      this.logger.debug(`CSRF from JWT starts with: ${credentials.csrfToken?.substring(0, 20) || 'N/A'}...`);
+      
       // Construir el header Cookie completo
       const cookieHeader = `_wispro_session_v2=${cookieHeaderValue}`;
       
