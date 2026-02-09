@@ -40,10 +40,14 @@ export class WisproAutomationService {
 
       // 2️⃣ Open a new page
       const page: Page = await context.newPage();
+      await page.setViewportSize({ width: 1280, height: 720 });
 
       // 3️⃣ Navigate to login page
       await page.goto(this.WISPRO_LOGIN_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
       this.logger.debug(`Navigated to ${this.WISPRO_LOGIN_URL}`);
+
+      // 3️⃣.1 Verificar que el formulario de login esté disponible
+      await this.ensureLoginForm(page);
 
       // 4️⃣ Fill email and password fields
       await page.fill('#user_email', credentials.email);
@@ -254,6 +258,44 @@ export class WisproAutomationService {
     }
 
     return errorMessages;
+  }
+
+  /**
+   * Verifica que el formulario de login esté disponible.
+   * Si no está, captura información para ayudar a diagnosticar bloqueos (WAF/Captcha).
+   */
+  private async ensureLoginForm(page: Page): Promise<void> {
+    try {
+      await Promise.all([
+        page.waitForSelector('#user_email', { timeout: 10000 }),
+        page.waitForSelector('#user_password', { timeout: 10000 }),
+      ]);
+    } catch (error) {
+      const url = page.url();
+      const title = await page.title().catch(() => 'unknown');
+      const bodyText = (await page.textContent('body').catch(() => null)) || '';
+      const snippet = bodyText.replace(/\s+/g, ' ').slice(0, 300);
+
+      const lower = bodyText.toLowerCase();
+      const possibleBlock =
+        lower.includes('cloudflare') ||
+        lower.includes('just a moment') ||
+        lower.includes('access denied') ||
+        lower.includes('captcha') ||
+        lower.includes('verifying') ||
+        lower.includes('checking your browser');
+
+      this.logger.warn(
+        `Login form not found. url=${url} title=${title} possibleBlock=${possibleBlock} snippet="${snippet}"`,
+      );
+
+      throw new HttpException(
+        possibleBlock
+          ? 'El login de Wispro fue bloqueado (WAF/Captcha). Intenta nuevamente o usa credenciales manuales.'
+          : 'No se encontró el formulario de login de Wispro. Verifica el acceso desde Cloud Run.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
   }
 }
 
