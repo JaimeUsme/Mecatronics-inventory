@@ -29,14 +29,20 @@ export class WisproAutomationService {
       this.logger.log('Starting Wispro automation login process');
 
       // 1️⃣ Launch headless browser
-      browser = await chromium.launch({ headless: true });
-      const context: BrowserContext = await browser.newContext();
+      browser = await chromium.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-dev-shm-usage'],
+      });
+      const context: BrowserContext = await browser.newContext({
+        userAgent:
+          'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      });
 
       // 2️⃣ Open a new page
       const page: Page = await context.newPage();
 
       // 3️⃣ Navigate to login page
-      await page.goto(this.WISPRO_LOGIN_URL);
+      await page.goto(this.WISPRO_LOGIN_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
       this.logger.debug(`Navigated to ${this.WISPRO_LOGIN_URL}`);
 
       // 4️⃣ Fill email and password fields
@@ -50,27 +56,25 @@ export class WisproAutomationService {
 
       // 6️⃣ Wait for navigation to complete (con timeout)
       try {
-        await page.waitForNavigation({ timeout: 10000, waitUntil: 'networkidle' });
-        this.logger.debug('Navigation completed');
+        await page.waitForLoadState('domcontentloaded', { timeout: 15000 });
+        this.logger.debug('DOM loaded after submit');
       } catch (error) {
-        this.logger.warn('Navigation timeout, verificando estado de la página');
+        this.logger.warn('Timeout esperando DOM después de submit, continuando');
       }
 
-      // 7️⃣ Verificar si el login fue exitoso
-      await this.validateLoginSuccess(page);
-
-      // 8️⃣ Extract cookies from context
+      // 7️⃣ Extract cookies from context
       const playwrightCookies: PlaywrightCookie[] = await context.cookies();
       this.logger.debug(`Extracted ${playwrightCookies.length} cookies`);
 
-      // 9️⃣ Map Playwright cookies to our Cookie type
+      // 8️⃣ Map Playwright cookies to our Cookie type
       const cookies: Cookie[] = playwrightCookies.map((c) => this.mapPlaywrightCookieToCookie(c));
 
-      // 🔟 Find _wispro_session_v2 cookie specifically
+      // 9️⃣ Find _wispro_session_v2 cookie specifically
       const sessionCookie = cookies.find((c) => c.name === '_wispro_session_v2') || null;
 
-      // 1️⃣1️⃣ Validate that we have a session cookie (login was successful)
+      // 1️⃣0️⃣ Validate login success only if no session cookie
       if (!sessionCookie || !sessionCookie.value) {
+        await this.validateLoginSuccess(page);
         this.logger.error('No se encontró cookie de sesión después del login');
         throw new HttpException(
           'Credenciales incorrectas o login fallido. No se pudo obtener la cookie de sesión.',
@@ -78,7 +82,7 @@ export class WisproAutomationService {
         );
       }
 
-      // 1️⃣2️⃣ Extract CSRF token
+      // 1️⃣1️⃣ Extract CSRF token
       const csrfToken = await this.extractCsrfToken(page, playwrightCookies);
 
       const result: WisproAuthResult = {
