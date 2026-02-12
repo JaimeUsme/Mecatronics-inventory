@@ -3,12 +3,23 @@
  * This file bootstraps the application and starts the HTTP server.
  */
 import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: ['log', 'error', 'warn', 'debug', 'verbose'], // Habilitar todos los niveles de log
   });
+  
+  // Habilitar ValidationPipe globalmente para transformar query params
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true, // Transforma automáticamente los tipos según los decoradores
+      transformOptions: {
+        enableImplicitConversion: true, // Convierte tipos automáticamente
+      },
+    }),
+  );
   
   const corsOriginRaw = process.env.CORS_ORIGIN;
   const corsOrigin =

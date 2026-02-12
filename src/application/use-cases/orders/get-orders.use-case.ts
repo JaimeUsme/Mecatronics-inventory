@@ -62,29 +62,84 @@ export class GetOrdersUseCase {
     const completed = requestDto.completed !== undefined ? requestDto.completed : false;
 
     // Construir query params para Wispro
-    // Los parámetros q[in_progress], q[scheduled], q[completed] y q[success] necesitan ser construidos manualmente
+    // Según la lógica de Wispro:
+    // - Failed: q[completed]=true&q[failure]=true
+    // - Success: q[completed]=true&q[success]=true
+    // - Programadas: q[in_progress]=true&q[scheduled]=true
+    // - No programadas: q[in_progress]=true&q[unscheduled]=true
     const queryParams = new URLSearchParams();
     queryParams.append('per_page', String(perPage));
     queryParams.append('page', String(page));
     
-    if (inProgress) {
+    // Filtros de estado según la lógica de Wispro
+    // Programadas: q[in_progress]=true&q[scheduled]=true
+    if (requestDto.scheduled_state === true) {
       queryParams.append('q[in_progress]', 'true');
-    }
-    if (scheduled) {
       queryParams.append('q[scheduled]', 'true');
     }
-    if (completed) {
+    
+    // No programadas: q[in_progress]=true&q[unscheduled]=true
+    if (requestDto.unscheduled === true) {
+      queryParams.append('q[in_progress]', 'true');
+      queryParams.append('q[unscheduled]', 'true');
+    }
+    
+    // Success: q[completed]=true&q[success]=true
+    if (requestDto.success === true) {
       queryParams.append('q[completed]', 'true');
       queryParams.append('q[success]', 'true');
     }
     
+    // Failure: q[completed]=true&q[failure]=true
+    if (requestDto.failure === true) {
+      this.logger.debug(`Adding failure filter: q[completed]=true&q[failure]=true`);
+      queryParams.append('q[completed]', 'true');
+      queryParams.append('q[failure]', 'true');
+    } else {
+      this.logger.debug(`Failure filter not applied. requestDto.failure = ${requestDto.failure} (type: ${typeof requestDto.failure})`);
+    }
+    
+    // Filtros básicos (solo si no se usan los filtros específicos arriba)
+    if (inProgress && !requestDto.scheduled_state && !requestDto.unscheduled) {
+      queryParams.append('q[in_progress]', 'true');
+    }
+    if (scheduled && !requestDto.scheduled_state) {
+      queryParams.append('q[scheduled]', 'true');
+    }
+    if (completed && !requestDto.success && !requestDto.failure) {
+      queryParams.append('q[completed]', 'true');
+      queryParams.append('q[success]', 'true');
+    }
+
     // Si se proporciona employee_id, agregar los parámetros de filtro por empleado
     if (hasEmployeeFilter) {
       queryParams.append('q[m]', 'and');
       queryParams.append('q[groupings][0][employee_id_eq]', requestDto.employee_id!);
     }
 
-    const ordersUrl = `/order/orders?${queryParams.toString()}`;
+    // Construir la URL base con los query params normales
+    let ordersUrl = `/order/orders?${queryParams.toString()}`;
+    this.logger.debug(`Orders URL constructed: ${ordersUrl}`);
+    
+    // Búsqueda por nombre o cédula del cliente
+    // Wispro espera espacios codificados como %20
+    // Si el frontend envía JUAN%CARLOS, reemplazar % con %20
+    if (requestDto.search && requestDto.search.trim()) {
+      let searchTerm = requestDto.search.trim();
+      
+      // Si el frontend envía JUAN%CARLOS (con % literal), reemplazar % con %20
+      if (searchTerm.includes('%') && !searchTerm.includes('%20')) {
+        // Reemplazar % con %20 (espacio codificado)
+        searchTerm = searchTerm.replace(/%/g, '%20');
+      } else if (!searchTerm.includes('%')) {
+        // Si no tiene %, codificar espacios normalmente
+        searchTerm = encodeURIComponent(searchTerm);
+      }
+      
+      // Agregar el parámetro de búsqueda manualmente (sin codificar el nombre)
+      // Esto es como se hace en get-employees.use-case.ts
+      ordersUrl += `&q[orderable_name_unaccent_cont]=${searchTerm}`;
+    }
 
     // Realizar petición autenticada a la API de Wispro
     const apiResponse: WisproOrdersApiResponse =

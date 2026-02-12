@@ -7,7 +7,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { WisproApiClientService } from '@infrastructure/external';
 import { JwtPayload } from '@infrastructure/auth/jwt';
-import { CreateOrderFeedbackRequestDto, OrderFeedbackDto } from '@presentation/dto';
+import { CreateOrderFeedbackRequestDto, GetOrderFeedbacksResponseDto } from '@presentation/dto';
 import { GetOrderFeedbacksUseCase } from './get-order-feedbacks.use-case';
 
 /**
@@ -43,17 +43,17 @@ export class CreateOrderFeedbackUseCase {
   /**
    * Ejecuta el caso de uso para crear un feedback en una orden
    * Las credenciales se obtienen del JWT token
-   * Después de crear el feedback, obtiene la lista completa de feedbacks
+   * Después de crear el feedback, obtiene la lista completa de feedbacks separados
    * @param orderId - ID de la orden
    * @param requestDto - Datos del feedback a crear
    * @param jwtPayload - Payload del JWT token con las credenciales de Wispro
-   * @returns Lista completa de feedbacks (incluyendo el nuevo)
+   * @returns Objeto con feedbacks normales y materiales separados (incluyendo el nuevo)
    */
   async execute(
     orderId: string,
     requestDto: CreateOrderFeedbackRequestDto,
     jwtPayload: JwtPayload,
-  ): Promise<OrderFeedbackDto[]> {
+  ): Promise<GetOrderFeedbacksResponseDto> {
     this.logger.log(
       `Creando feedback en la orden ${orderId} para usuario: ${jwtPayload.sub}`,
     );
@@ -92,7 +92,7 @@ export class CreateOrderFeedbackUseCase {
     );
 
     this.logger.log(
-      `Lista de feedbacks obtenida: ${allFeedbacks.length} feedbacks para la orden ${orderId}`,
+      `Lista de feedbacks obtenida: ${allFeedbacks.feedbacks.length} feedbacks normales, ${allFeedbacks.materials.length} materiales para la orden ${orderId}`,
     );
 
     return allFeedbacks;

@@ -1,7 +1,7 @@
 /**
  * Order DTO
  * 
- * DTO que define la estructura de una orden simplificada.
+ * DTO que define la estructura de una orden, manteniendo la estructura anidada de Wispro.
  */
 export class OrderDto {
   /**
@@ -15,9 +15,44 @@ export class OrderDto {
   sequential_id: number;
 
   /**
-   * Estado de la orden (pending, in_progress, completed, etc.)
+   * Estado de la orden (pending, in_progress, completed, to_reschedule, closed, etc.)
    */
   state: string;
+
+  /**
+   * Resultado de la orden (success, failure, not_set)
+   */
+  result: string;
+
+  /**
+   * Descripción de la orden
+   */
+  description: string;
+
+  /**
+   * Fecha de creación de la orden
+   */
+  created_at: string;
+
+  /**
+   * Fecha/hora de inicio programada de la orden
+   */
+  start_at: string | null;
+
+  /**
+   * Fecha/hora de fin programada de la orden
+   */
+  end_at: string | null;
+
+  /**
+   * Fecha/hora de finalización de la orden
+   */
+  finalized_at: string | null;
+
+  /**
+   * Fecha/hora de programación de la orden
+   */
+  programated_at: string | null;
 
   /**
    * ID del empleado asignado
@@ -35,24 +70,20 @@ export class OrderDto {
   orderable_name: string;
 
   /**
-   * Dirección completa (full_address del gps_point)
+   * Punto GPS con la dirección completa (estructura de Wispro)
    */
-  full_address: string;
+  gps_point: {
+    full_address: string;
+  } | null;
 
   /**
-   * Fecha de creación de la orden
+   * Ticket asociado (estructura de Wispro)
    */
-  created_at: string;
-
-  /**
-   * Fecha de asignación (assigned_at del ticket)
-   */
-  assigned_at: string | null;
-
-  /**
-   * Descripción de la orden
-   */
-  description: string;
+  ticket: {
+    assigned_at: string | null;
+    state: string | null;
+    finalized_at: string | null;
+  } | null;
 
   /**
    * Información de la cuadrilla al momento de la orden (snapshot histórico)

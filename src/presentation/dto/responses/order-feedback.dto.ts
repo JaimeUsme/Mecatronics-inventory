@@ -25,6 +25,16 @@ export class OrderFeedbackDto {
   comment?: string;
 
   /**
+   * Cuerpo del feedback (puede contener JSON para materiales)
+   */
+  body?: string;
+
+  /**
+   * ID del tipo de feedback
+   */
+  feedback_kind_id?: string;
+
+  /**
    * Calificación (si aplica)
    */
   rating?: number;

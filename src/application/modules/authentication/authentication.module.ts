@@ -2,29 +2,28 @@
  * Authentication Module
  * 
  * Módulo que agrupa todos los componentes relacionados con autenticación:
- * - Casos de uso de autenticación
+ * - Casos de uso de autenticación (perfil)
  * - Controladores de autenticación
- * - Servicios de automatización necesarios
+ * 
+ * Nota: El login se realiza a través de /internal-auth/login (login interno de Mecatronics).
  */
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { WisproAutomationModule } from '@infrastructure/automation';
 import { JwtAuthModule } from '@infrastructure/auth/jwt';
 import { InternalUser } from '@infrastructure/persistence/entities';
-import { LoginUseCase, GetProfileUseCase } from '@application/use-cases';
+import { GetProfileUseCase } from '@application/use-cases';
 import { AuthenticationController } from '@presentation/controllers';
-import { UsersModule } from '../users/users.module';
+import { WisproApiModule } from '@infrastructure/external';
 
 @Module({
   imports: [
-    WisproAutomationModule,
     JwtAuthModule,
     TypeOrmModule.forFeature([InternalUser]),
-    UsersModule,
+    WisproApiModule,
   ],
   controllers: [AuthenticationController],
-  providers: [LoginUseCase, GetProfileUseCase],
-  exports: [LoginUseCase, GetProfileUseCase],
+  providers: [GetProfileUseCase],
+  exports: [GetProfileUseCase],
 })
 export class AuthenticationModule {}
 

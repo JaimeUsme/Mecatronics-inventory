@@ -48,6 +48,13 @@ export class InternalUser {
    */
   @Column({ type: 'varchar', length: 255, nullable: true })
   wisproPasswordEncrypted?: string | null;
+
+  /**
+   * Indica si el usuario está activo.
+   * Los usuarios inactivos no pueden hacer login.
+   */
+  @Column({ type: 'boolean', default: true })
+  active: boolean;
 }
 
 

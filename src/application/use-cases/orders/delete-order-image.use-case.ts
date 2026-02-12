@@ -7,7 +7,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { WisproApiClientService } from '@infrastructure/external';
 import { JwtPayload } from '@infrastructure/auth/jwt';
-import { OrderImageDto } from '@presentation/dto';
+import { GetOrderImagesResponseDto } from '@presentation/dto';
 import { GetOrderImagesUseCase } from './get-order-images.use-case';
 
 @Injectable()
@@ -22,17 +22,17 @@ export class DeleteOrderImageUseCase {
   /**
    * Ejecuta el caso de uso para eliminar una imagen de una orden
    * Las credenciales se obtienen del JWT token
-   * Después de eliminar la imagen, obtiene la lista completa de imágenes
+   * Después de eliminar la imagen, obtiene la lista completa de imágenes separadas
    * @param orderId - ID de la orden
    * @param imageId - ID de la imagen a eliminar
    * @param jwtPayload - Payload del JWT token con las credenciales de Wispro
-   * @returns Lista completa de imágenes (sin la eliminada)
+   * @returns Objeto con imágenes normales y firma separadas (sin la eliminada)
    */
   async execute(
     orderId: string,
     imageId: string,
     jwtPayload: JwtPayload,
-  ): Promise<OrderImageDto[]> {
+  ): Promise<GetOrderImagesResponseDto> {
     this.logger.log(
       `Eliminando imagen ${imageId} de la orden ${orderId} para usuario: ${jwtPayload.sub}`,
     );
@@ -60,7 +60,7 @@ export class DeleteOrderImageUseCase {
     );
 
     this.logger.log(
-      `Lista de imágenes obtenida: ${allImages.length} imágenes para la orden ${orderId}`,
+      `Lista de imágenes obtenida: ${allImages.images.length} imágenes normales, ${allImages.sign ? '1' : '0'} firma(s) para la orden ${orderId}`,
     );
 
     return allImages;

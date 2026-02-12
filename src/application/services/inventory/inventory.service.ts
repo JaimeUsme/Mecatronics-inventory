@@ -826,6 +826,7 @@ export class InventoryService {
     minStock: number = 0,
     category: string = 'GENERAL',
     images?: string[],
+    ownershipType: MaterialOwnershipType = MaterialOwnershipType.TECHNICIAN,
   ): Promise<Material> {
     const material = this.materialRepository.create({
       name,
@@ -833,10 +834,86 @@ export class InventoryService {
       minStock,
       category,
       images: images || null,
+      ownershipType,
     });
     const saved = await this.materialRepository.save(material);
     this.logger.log(`Material creado: ${saved.name} (${saved.id})`);
     return saved;
+  }
+
+  /**
+   * Actualiza un material existente
+   */
+  async updateMaterial(
+    materialId: string,
+    updates: {
+      name?: string;
+      unit?: string;
+      minStock?: number;
+      category?: string;
+      images?: string[];
+      ownershipType?: MaterialOwnershipType;
+    },
+  ): Promise<Material> {
+    const material = await this.materialRepository.findOne({
+      where: { id: materialId },
+    });
+
+    if (!material) {
+      throw new NotFoundException(`Material con ID ${materialId} no encontrado`);
+    }
+
+    // Actualizar solo los campos proporcionados
+    if (updates.name !== undefined) {
+      material.name = updates.name;
+    }
+    if (updates.unit !== undefined) {
+      material.unit = updates.unit;
+    }
+    if (updates.minStock !== undefined) {
+      material.minStock = updates.minStock;
+    }
+    if (updates.category !== undefined) {
+      material.category = updates.category;
+    }
+    if (updates.images !== undefined) {
+      material.images = updates.images.length > 0 ? updates.images : null;
+    }
+    if (updates.ownershipType !== undefined) {
+      material.ownershipType = updates.ownershipType;
+    }
+
+    const saved = await this.materialRepository.save(material);
+    this.logger.log(`Material actualizado: ${saved.name} (${saved.id})`);
+    return saved;
+  }
+
+  /**
+   * Elimina un material de forma lógica (soft delete)
+   */
+  async deleteMaterial(materialId: string): Promise<void> {
+    const material = await this.materialRepository.findOne({
+      where: { id: materialId },
+    });
+
+    if (!material) {
+      throw new NotFoundException(`Material con ID ${materialId} no encontrado`);
+    }
+
+    // Verificar si el material tiene inventario activo
+    const hasInventory = await this.inventoryRepository.count({
+      where: { materialId },
+    });
+
+    if (hasInventory > 0) {
+      throw new ConflictException(
+        `No se puede eliminar el material "${material.name}" porque tiene inventario asociado. Primero debe ajustar o transferir todo el inventario.`,
+      );
+    }
+
+    // Realizar borrado lógico usando softRemove
+    await this.materialRepository.softRemove(material);
+    this.logger.log(`Material eliminado (soft delete): ${material.name} (${materialId})`);
   }
 
   /**
@@ -964,6 +1041,40 @@ export class InventoryService {
 
     await this.locationRepository.remove(location);
     this.logger.log(`Ubicación eliminada: ${location.name} (${location.id})`);
+  }
+
+  /**
+   * Actualiza una ubicación existente
+   * 
+   * Solo permite actualizar el nombre y el estado activo.
+   * El tipo y referenceId no se pueden cambiar después de la creación.
+   */
+  async updateLocation(
+    locationId: string,
+    updates: {
+      name?: string;
+      active?: boolean;
+    },
+  ): Promise<Location> {
+    const location = await this.locationRepository.findOne({
+      where: { id: locationId },
+    });
+
+    if (!location) {
+      throw new NotFoundException(`Ubicación con ID "${locationId}" no encontrada.`);
+    }
+
+    if (updates.name !== undefined) {
+      location.name = updates.name;
+    }
+
+    if (updates.active !== undefined) {
+      location.active = updates.active;
+    }
+
+    const updated = await this.locationRepository.save(location);
+    this.logger.log(`Ubicación actualizada: ${updated.name} (${locationId})`);
+    return updated;
   }
 
   /**

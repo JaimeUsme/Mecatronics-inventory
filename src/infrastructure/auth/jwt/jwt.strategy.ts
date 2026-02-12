@@ -29,7 +29,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
    * @returns Payload validado
    */
   async validate(payload: JwtPayload): Promise<JwtPayload> {
-    // Caso A: token de Wispro directo (/auth/login)
+    // Caso A: token de Wispro directo (ya no se usa, solo para compatibilidad con tokens antiguos)
     if (payload.csrfToken && payload.sessionCookie) {
       this.logger.debug(`JWT Wispro válido para: ${payload.sub}`);
       return payload;

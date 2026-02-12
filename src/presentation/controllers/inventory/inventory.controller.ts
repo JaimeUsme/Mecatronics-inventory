@@ -3,7 +3,7 @@
  * 
  * Controlador que expone los endpoints relacionados con inventario.
  */
-import { Controller, Post, Get, Delete, Body, Param, HttpCode, HttpStatus, Query, UseGuards, UseInterceptors, UploadedFiles } from '@nestjs/common';
+import { Controller, Post, Put, Get, Delete, Body, Param, HttpCode, HttpStatus, Query, UseGuards, UseInterceptors, UploadedFiles } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { InventoryService } from '@application/services/inventory';
 import { UploadImageUseCase } from '@application/use-cases/upload-image.use-case';
@@ -12,7 +12,9 @@ import {
   ConsumeMaterialRequestDto,
   ConsumeMaterialsRequestDto,
   CreateMaterialRequestDto,
+  UpdateMaterialRequestDto,
   CreateLocationRequestDto,
+  UpdateLocationRequestDto,
   AdjustInventoryRequestDto,
   GetMaterialsRequestDto,
   GetInventoryRequestDto,
@@ -22,7 +24,7 @@ import {
 import { JwtAuthGuard } from '@presentation/guards';
 import { CurrentUser } from '@presentation/decorators';
 import { JwtPayload } from '@infrastructure/auth/jwt';
-import { GetCurrentUserUseCase } from '@application/use-cases';
+import { GetProfileUseCase } from '@application/use-cases';
 import { InventoryResponseDto } from '@presentation/dto/responses/inventory-response.dto';
 import { InventoryStatsResponseDto } from '@presentation/dto/responses/inventory-stats-response.dto';
 import { GetMovementsResponseDto } from '@presentation/dto/responses/inventory-movement.dto';
@@ -34,7 +36,7 @@ import { BadRequestException } from '@nestjs/common';
 export class InventoryController {
   constructor(
     private readonly inventoryService: InventoryService,
-    private readonly getCurrentUserUseCase: GetCurrentUserUseCase,
+    private readonly getProfileUseCase: GetProfileUseCase,
     private readonly uploadImageUseCase: UploadImageUseCase,
   ) {}
 
@@ -114,7 +116,7 @@ export class InventoryController {
    * - Si el material es de tipo CREW: se consume del inventario de la cuadrilla del técnico
    * 
    * Requiere un JWT token válido en el header Authorization: Bearer <token>
-   * El technicianId se obtiene automáticamente del JWT llamando a /users/current de Wispro
+   * El technicianId se obtiene automáticamente del JWT llamando a /auth/profile
    * 
    * @param dto - Datos del consumo (materials[], serviceOrderId)
    * @param user - Payload del JWT token (inyectado automáticamente por el guard)
@@ -128,7 +130,7 @@ export class InventoryController {
     @CurrentUser() user: JwtPayload,
   ): Promise<void> {
     // Obtener technicianId del JWT llamando a Wispro
-    const currentUser = await this.getCurrentUserUseCase.execute(user);
+    const currentUser = await this.getProfileUseCase.execute(user);
     const technicianId = currentUser.userable_id; // userable_id es el ID del empleado (technicianId)
 
     // Preparar los materiales para el servicio
@@ -255,6 +257,7 @@ export class InventoryController {
       dto.minStock,
       dto.category,
       allImageUrls.length > 0 ? allImageUrls : undefined,
+      dto.ownershipType,
     );
     
     return {
@@ -267,6 +270,100 @@ export class InventoryController {
       ownershipType: (material as any).ownershipType || 'TECHNICIAN',
       createdAt: material.createdAt,
     };
+  }
+
+  /**
+   * Actualiza un material existente
+   * 
+   * PUT /inventory/materials/:id
+   * 
+   * Acepta un formulario multipart con campos opcionales:
+   * - name: string (opcional)
+   * - unit: string (opcional)
+   * - minStock: number (opcional)
+   * - category: string (opcional)
+   * - ownershipType: 'TECHNICIAN' | 'CREW' (opcional)
+   * - images: File[] (opcional, múltiples archivos)
+   * 
+   * Las imágenes se suben a Google Cloud Storage y se guardan las URLs en el material.
+   * Solo se actualizan los campos proporcionados.
+   */
+  @Put('materials/:id')
+  @UseInterceptors(FilesInterceptor('images', 10)) // Máximo 10 imágenes
+  @HttpCode(HttpStatus.OK)
+  async updateMaterial(
+    @Param('id') id: string,
+    @Body() dto: UpdateMaterialRequestDto,
+    @UploadedFiles() files?: Express.Multer.File[],
+  ): Promise<MaterialDto> {
+    // Subir imágenes a GCS si se proporcionaron
+    let imageUrls: string[] = [];
+    
+    if (files && files.length > 0) {
+      try {
+        // Subir todas las imágenes en paralelo
+        const uploadPromises = files.map((file) =>
+          this.uploadImageUseCase.execute({
+            buffer: file.buffer,
+            originalName: file.originalname,
+            mimeType: file.mimetype,
+          }),
+        );
+        
+        imageUrls = await Promise.all(uploadPromises);
+      } catch (error) {
+        throw new BadRequestException(
+          `Error al subir imágenes: ${error?.message || 'Error desconocido'}`,
+        );
+      }
+    }
+
+    // Si se proporcionaron URLs en el DTO, combinarlas con las subidas
+    const allImageUrls = [...imageUrls, ...(dto.images || [])];
+
+    // Preparar los updates
+    const updates: any = {};
+    if (dto.name !== undefined) updates.name = dto.name;
+    if (dto.unit !== undefined) updates.unit = dto.unit;
+    if (dto.minStock !== undefined) updates.minStock = dto.minStock;
+    if (dto.category !== undefined) updates.category = dto.category;
+    if (dto.ownershipType !== undefined) updates.ownershipType = dto.ownershipType;
+    if (allImageUrls.length > 0 || dto.images !== undefined) {
+      // Si se proporcionaron imágenes (archivos o URLs), actualizar el campo
+      updates.images = allImageUrls.length > 0 ? allImageUrls : null;
+    }
+
+    const material = await this.inventoryService.updateMaterial(id, updates);
+    
+    return {
+      id: material.id,
+      name: material.name,
+      unit: material.unit,
+      minStock: Number(material.minStock ?? 0),
+      category: material.category,
+      images: (material as any).images ?? null,
+      ownershipType: (material as any).ownershipType || 'TECHNICIAN',
+      createdAt: material.createdAt,
+    };
+  }
+
+  /**
+   * Elimina un material de forma lógica (soft delete)
+   * 
+   * DELETE /inventory/materials/:id
+   * 
+   * Realiza un borrado lógico del material. El material no se elimina físicamente
+   * de la base de datos, solo se marca como eliminado con deletedAt.
+   * 
+   * No se puede eliminar un material que tenga inventario asociado.
+   * 
+   * @param id - ID del material a eliminar
+   * @returns void
+   */
+  @Delete('materials/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteMaterial(@Param('id') id: string): Promise<void> {
+    await this.inventoryService.deleteMaterial(id);
   }
 
   /**
@@ -358,6 +455,39 @@ export class InventoryController {
       active: l.active,
       createdAt: l.createdAt,
     }));
+  }
+
+  /**
+   * Actualiza una ubicación existente
+   * 
+   * PUT /inventory/locations/:locationId
+   * 
+   * Permite actualizar el nombre y el estado activo de una ubicación.
+   * El tipo y referenceId no se pueden cambiar después de la creación.
+   * 
+   * @param locationId - ID de la ubicación a actualizar
+   * @param dto - Datos a actualizar (name, active)
+   * @returns Ubicación actualizada
+   */
+  @Put('locations/:locationId')
+  @HttpCode(HttpStatus.OK)
+  async updateLocation(
+    @Param('locationId') locationId: string,
+    @Body() dto: UpdateLocationRequestDto,
+  ): Promise<LocationDto> {
+    const updated = await this.inventoryService.updateLocation(locationId, {
+      name: dto.name,
+      active: dto.active,
+    });
+
+    return {
+      id: updated.id,
+      type: updated.type,
+      referenceId: updated.referenceId,
+      name: updated.name,
+      active: updated.active,
+      createdAt: updated.createdAt,
+    };
   }
 
   /**

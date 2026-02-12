@@ -9,6 +9,7 @@ import {
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
+  DeleteDateColumn,
   OneToMany,
   Index,
 } from 'typeorm';
@@ -64,6 +65,13 @@ export class Material {
 
   @CreateDateColumn({ type: 'timestamp' })
   createdAt: Date;
+
+  /**
+   * Fecha de eliminación (borrado lógico).
+   * Si es null, el material está activo.
+   */
+  @DeleteDateColumn({ type: 'timestamp', nullable: true })
+  deletedAt?: Date | null;
 
   // Relaciones
   @OneToMany(() => Inventory, (inventory) => inventory.material)

@@ -53,6 +53,11 @@ export class ProfileResponseDto {
   phone_mobile?: string;
 
   /**
+   * ID del userable (Employee, etc.) - solo disponible para usuarios de Wispro
+   */
+  userable_id?: string;
+
+  /**
    * Estado de conexión con Wispro
    */
   wispro: WisproConnectionStatusDto;

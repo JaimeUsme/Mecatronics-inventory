@@ -7,7 +7,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { WisproApiClientService } from '@infrastructure/external';
 import { JwtPayload } from '@infrastructure/auth/jwt';
-import { OrderImageDto } from '@presentation/dto';
+import { GetOrderImagesResponseDto } from '@presentation/dto';
+import { GetOrderImagesUseCase } from './get-order-images.use-case';
 
 /**
  * Interfaz para la respuesta cruda de la API de Wispro
@@ -26,21 +27,25 @@ type WisproOrderImagesApiResponse = Array<{
 export class UploadOrderImageUseCase {
   private readonly logger = new Logger(UploadOrderImageUseCase.name);
 
-  constructor(private readonly wisproApiClient: WisproApiClientService) {}
+  constructor(
+    private readonly wisproApiClient: WisproApiClientService,
+    private readonly getOrderImagesUseCase: GetOrderImagesUseCase,
+  ) {}
 
   /**
    * Ejecuta el caso de uso para subir una imagen a una orden
    * Las credenciales se obtienen del JWT token
+   * Después de subir la imagen, obtiene la lista completa de imágenes separadas
    * @param orderId - ID de la orden
    * @param file - Archivo a subir (Express.Multer.File)
    * @param jwtPayload - Payload del JWT token con las credenciales de Wispro
-   * @returns Array de imágenes de la orden (incluyendo la nueva)
+   * @returns Objeto con imágenes normales y firma separadas (incluyendo la nueva)
    */
   async execute(
     orderId: string,
     file: Express.Multer.File,
     jwtPayload: JwtPayload,
-  ): Promise<OrderImageDto[]> {
+  ): Promise<GetOrderImagesResponseDto> {
     this.logger.log(
       `Subiendo imagen a la orden ${orderId} para usuario: ${jwtPayload.sub}`,
     );
@@ -48,34 +53,31 @@ export class UploadOrderImageUseCase {
     const imagesUrl = `/order/orders/${orderId}/images`;
 
     // Realizar petición autenticada a la API de Wispro con multipart/form-data
-    const apiResponse: WisproOrderImagesApiResponse =
-      await this.wisproApiClient.postMultipart<WisproOrderImagesApiResponse>(
-        imagesUrl,
-        file,
-        {
-          csrfToken: jwtPayload.csrfToken,
-          sessionCookie: jwtPayload.sessionCookie,
-          customReferer: 'https://cloud.wispro.co/order/orders?locale=es',
-        },
-      );
-
-    // Mapear respuesta de la API a nuestro DTO
-    const images: OrderImageDto[] = (Array.isArray(apiResponse) ? apiResponse : []).map(
-      (image) => ({
-        id: image.id || '',
-        created_at: image.created_at || '',
-        filename: image.filename || '',
-        original: image.original || '',
-        thumb: image.thumb || '',
-        mini: image.mini || '',
-      }),
+    await this.wisproApiClient.postMultipart<WisproOrderImagesApiResponse>(
+      imagesUrl,
+      file,
+      {
+        csrfToken: jwtPayload.csrfToken,
+        sessionCookie: jwtPayload.sessionCookie,
+        customReferer: 'https://cloud.wispro.co/order/orders?locale=es',
+      },
     );
 
     this.logger.log(
-      `Imagen subida exitosamente. Total de imágenes para la orden ${orderId}: ${images.length}`,
+      `Imagen subida exitosamente para la orden ${orderId}`,
     );
 
-    return images;
+    // Después de subir la imagen, obtener la lista completa de imágenes separadas
+    const allImages = await this.getOrderImagesUseCase.execute(
+      orderId,
+      jwtPayload,
+    );
+
+    this.logger.log(
+      `Lista de imágenes obtenida: ${allImages.images.length} imágenes normales, ${allImages.sign ? '1' : '0'} firma(s) para la orden ${orderId}`,
+    );
+
+    return allImages;
   }
 }
 

@@ -7,7 +7,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { WisproApiClientService } from '@infrastructure/external';
 import { JwtPayload } from '@infrastructure/auth/jwt';
-import { OrderImageDto } from '@presentation/dto';
+import { OrderImageDto, GetOrderImagesResponseDto } from '@presentation/dto';
 
 /**
  * Interfaz para la respuesta cruda de la API de Wispro
@@ -31,14 +31,15 @@ export class GetOrderImagesUseCase {
   /**
    * Ejecuta el caso de uso para obtener las imágenes de una orden
    * Las credenciales se obtienen del JWT token
+   * Separa las imágenes normales de las firmas (filename que empieza con 'sign-')
    * @param orderId - ID de la orden
    * @param jwtPayload - Payload del JWT token con las credenciales de Wispro
-   * @returns Array de imágenes de la orden
+   * @returns Objeto con imágenes normales y firma separadas
    */
   async execute(
     orderId: string,
     jwtPayload: JwtPayload,
-  ): Promise<OrderImageDto[]> {
+  ): Promise<GetOrderImagesResponseDto> {
     this.logger.log(`Obteniendo imágenes de la orden ${orderId} para usuario: ${jwtPayload.sub}`);
 
     const imagesUrl = `/order/orders/${orderId}/images`;
@@ -55,7 +56,7 @@ export class GetOrderImagesUseCase {
       );
 
     // Mapear respuesta de la API a nuestro DTO
-    const images: OrderImageDto[] = (Array.isArray(apiResponse) ? apiResponse : []).map(
+    const allImages: OrderImageDto[] = (Array.isArray(apiResponse) ? apiResponse : []).map(
       (image) => ({
         id: image.id || '',
         created_at: image.created_at || '',
@@ -66,11 +67,18 @@ export class GetOrderImagesUseCase {
       }),
     );
 
+    // Separar imágenes normales de firmas
+    const sign = allImages.find((img) => img.filename.startsWith('sign-')) || null;
+    const images = allImages.filter((img) => !img.filename.startsWith('sign-'));
+
     this.logger.log(
-      `Imágenes obtenidas exitosamente: ${images.length} imágenes para la orden ${orderId}`,
+      `Imágenes obtenidas exitosamente: ${images.length} imágenes normales, ${sign ? '1' : '0'} firma(s) para la orden ${orderId}`,
     );
 
-    return images;
+    return {
+      images,
+      sign,
+    };
   }
 }
 

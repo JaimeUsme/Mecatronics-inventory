@@ -123,16 +123,93 @@ export class WisproApiClientService {
   }
 
   /**
+   * Realiza una petición PUT autenticada a la API de Wispro
+   * @param endpoint - Endpoint relativo
+   * @param body - Cuerpo de la petición
+   * @param options - Opciones de autenticación (opcionales, se usan de la sesión si no se proporcionan)
+   * @returns Respuesta de la API
+   */
+  async put<T = any>(
+    endpoint: string,
+    body: any,
+    options?: WisproApiRequestOptions,
+  ): Promise<T> {
+    try {
+      // Obtener credenciales de las opciones (deben venir del JWT)
+      const credentials = this.getCredentials(options);
+
+      if (!credentials) {
+        throw new HttpException(
+          'Credenciales de Wispro no proporcionadas. El token JWT debe contener las credenciales.',
+          HttpStatus.UNAUTHORIZED,
+        );
+      }
+
+      const url = `${this.baseUrl}${endpoint}`;
+      this.logger.debug(`Making PUT request to: ${url}`);
+
+      // Usar la cookie directamente del JWT (ya viene URL-encoded, no necesita decodificación)
+      const cookieHeaderValue = credentials.sessionCookie;
+
+      // Determinar Referer (usar custom si se proporciona, sino usar el endpoint)
+      const referer = options?.customReferer || `${this.baseUrl}${endpoint}?locale=es`;
+
+      this.logger.debug(`Using Referer: ${referer}`);
+      this.logger.debug(`Request body: ${JSON.stringify(body)}`);
+
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Accept': 'application/json',
+          'Cookie': `_wispro_session_v2=${cookieHeaderValue}`,
+          'X-CSRF-Token': credentials.csrfToken,
+          'Referer': referer,
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Content-Type': 'application/json;charset=utf-8',
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        this.logger.error(
+          `API request failed: ${response.status} ${response.statusText}`,
+        );
+        this.logger.error(`Error details: ${errorText}`);
+        throw new HttpException(
+          `API request failed: ${response.statusText}`,
+          response.status || HttpStatus.INTERNAL_SERVER_ERROR,
+        );
+      }
+
+      const data: T = await response.json();
+      this.logger.debug(`API request successful to: ${endpoint}`);
+      return data;
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      this.logger.error(`Error making API request to ${endpoint}:`, error);
+      throw new HttpException(
+        'Failed to communicate with Wispro API',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
    * Realiza una petición POST autenticada a la API de Wispro
    * @param endpoint - Endpoint relativo
    * @param body - Cuerpo de la petición
    * @param options - Opciones de autenticación (opcionales, se usan de la sesión si no se proporcionan)
+   * @param useFormData - Si es true, envía el body como application/x-www-form-urlencoded
    * @returns Respuesta de la API
    */
   async post<T = any>(
     endpoint: string,
     body: any,
     options?: WisproApiRequestOptions,
+    useFormData: boolean = false,
   ): Promise<T> {
     try {
       // Obtener credenciales de las opciones (deben venir del JWT)
@@ -151,17 +228,39 @@ export class WisproApiClientService {
       // Usar la cookie directamente del JWT (ya viene URL-encoded, no necesita decodificación)
       const cookieHeaderValue = credentials.sessionCookie;
 
+      // Determinar Referer (usar custom si se proporciona, sino usar el endpoint)
+      const referer = options?.customReferer || `${this.baseUrl}${endpoint}?locale=es`;
+
+      this.logger.debug(`Using Referer: ${referer}`);
+      this.logger.debug(`Request body: ${JSON.stringify(body)}`);
+      this.logger.debug(`Using form data: ${useFormData}`);
+
+      // Preparar headers y body según el formato
+      let contentType: string;
+      let requestBody: string;
+
+      if (useFormData) {
+        // Convertir el objeto anidado a formato application/x-www-form-urlencoded
+        // Rails espera formato: order[state]=value&order[feedbacks_attributes][0][index]=0&...
+        const formData = this.convertToFormData(body);
+        contentType = 'application/x-www-form-urlencoded';
+        requestBody = formData;
+      } else {
+        contentType = 'application/json;charset=utf-8';
+        requestBody = JSON.stringify(body);
+      }
+
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
           'Cookie': `_wispro_session_v2=${cookieHeaderValue}`,
           'X-CSRF-Token': credentials.csrfToken,
-          'Referer': `${this.baseUrl}/`,
+          'Referer': referer,
           'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Content-Type': 'application/json;charset=utf-8',
+          'Content-Type': contentType,
         },
-        body: JSON.stringify(body),
+        body: requestBody,
       });
 
       if (!response.ok) {
@@ -262,6 +361,81 @@ export class WisproApiClientService {
   }
 
   /**
+   * Realiza una petición PATCH autenticada a la API de Wispro
+   * @param endpoint - Endpoint relativo
+   * @param body - Cuerpo de la petición
+   * @param options - Opciones de autenticación (opcionales, se usan de la sesión si no se proporcionan)
+   * @returns Respuesta de la API
+   */
+  async patch<T = any>(
+    endpoint: string,
+    body: any,
+    options?: WisproApiRequestOptions,
+  ): Promise<T> {
+    try {
+      // Obtener credenciales de las opciones (deben venir del JWT)
+      const credentials = this.getCredentials(options);
+
+      if (!credentials) {
+        throw new HttpException(
+          'Credenciales de Wispro no proporcionadas. El token JWT debe contener las credenciales.',
+          HttpStatus.UNAUTHORIZED,
+        );
+      }
+
+      const url = `${this.baseUrl}${endpoint}`;
+      this.logger.debug(`Making PATCH request to: ${url}`);
+
+      // Usar la cookie directamente del JWT (ya viene URL-encoded, no necesita decodificación)
+      const cookieHeaderValue = credentials.sessionCookie;
+
+      // Determinar Referer (usar custom si se proporciona, sino usar el endpoint)
+      const referer = options?.customReferer || `${this.baseUrl}${endpoint}?locale=es`;
+
+      this.logger.debug(`Using Referer: ${referer}`);
+      this.logger.debug(`Request body: ${JSON.stringify(body)}`);
+
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          'Accept': 'application/json',
+          'Cookie': `_wispro_session_v2=${cookieHeaderValue}`,
+          'X-CSRF-Token': credentials.csrfToken,
+          'Referer': referer,
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Content-Type': 'application/json;charset=utf-8',
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        this.logger.error(
+          `API request failed: ${response.status} ${response.statusText}`,
+        );
+        this.logger.error(`Error details: ${errorText}`);
+        throw new HttpException(
+          `API request failed: ${response.statusText}`,
+          response.status || HttpStatus.INTERNAL_SERVER_ERROR,
+        );
+      }
+
+      const data: T = await response.json();
+      this.logger.debug(`API request successful to: ${endpoint}`);
+      return data;
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      this.logger.error(`Error making API request to ${endpoint}:`, error);
+      throw new HttpException(
+        'Failed to communicate with Wispro API',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
    * Realiza una petición DELETE autenticada a la API de Wispro
    * @param endpoint - Endpoint relativo
    * @param options - Opciones de autenticación
@@ -345,6 +519,45 @@ export class WisproApiClientService {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+
+  /**
+   * Convierte un objeto anidado a formato application/x-www-form-urlencoded
+   * Compatible con el formato que espera Rails (ej: order[state]=value&order[feedbacks_attributes][0][index]=0)
+   * @param obj - Objeto a convertir
+   * @param prefix - Prefijo para las claves (usado recursivamente)
+   * @returns String en formato URL-encoded
+   */
+  private convertToFormData(obj: any, prefix: string = ''): string {
+    const pairs: string[] = [];
+
+    for (const key in obj) {
+      if (obj.hasOwnProperty(key)) {
+        const value = obj[key];
+        const newKey = prefix ? `${prefix}[${key}]` : key;
+
+        if (value === null || value === undefined) {
+          continue;
+        } else if (Array.isArray(value)) {
+          // Para arrays, usar índice numérico: order[feedbacks_attributes][0][index]
+          value.forEach((item, index) => {
+            if (typeof item === 'object' && item !== null) {
+              pairs.push(this.convertToFormData(item, `${newKey}[${index}]`));
+            } else {
+              pairs.push(`${encodeURIComponent(`${newKey}[${index}]`)}=${encodeURIComponent(String(item))}`);
+            }
+          });
+        } else if (typeof value === 'object') {
+          // Para objetos anidados, continuar recursivamente
+          pairs.push(this.convertToFormData(value, newKey));
+        } else {
+          // Para valores primitivos
+          pairs.push(`${encodeURIComponent(newKey)}=${encodeURIComponent(String(value))}`);
+        }
+      }
+    }
+
+    return pairs.join('&');
   }
 
   /**

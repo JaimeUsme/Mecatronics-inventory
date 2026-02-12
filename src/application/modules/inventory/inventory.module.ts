@@ -7,11 +7,11 @@
 import { Module } from '@nestjs/common';
 import { InventoryModule as InventoryServiceModule } from '@application/services/inventory';
 import { InventoryController } from '@presentation/controllers/inventory/inventory.controller';
-import { UsersModule } from '@application/modules/users/users.module';
 import { StorageModule } from '../storage/storage.module';
+import { AuthenticationModule } from '../authentication/authentication.module';
 
 @Module({
-  imports: [InventoryServiceModule, UsersModule, StorageModule],
+  imports: [InventoryServiceModule, StorageModule, AuthenticationModule],
   controllers: [InventoryController],
   exports: [InventoryServiceModule],
 })

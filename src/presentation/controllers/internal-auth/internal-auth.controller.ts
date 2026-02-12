@@ -3,17 +3,22 @@
  *
  * Endpoints de autenticación interna (no dependen de Wispro).
  */
-import { Controller, Post, Body, HttpCode, HttpStatus, Headers, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Put, Delete, Body, Query, Param, HttpCode, HttpStatus, Headers, UseGuards, ConflictException } from '@nestjs/common';
 import { InternalAuthService } from '@application/services/internal-auth';
 import {
   RegisterInternalUserRequestDto,
   LoginInternalUserRequestDto,
   LinkWisproRequestDto,
+  GetInternalUsersRequestDto,
+  UpdateInternalUserRequestDto,
+  UpdateOwnProfileRequestDto,
   InternalUserDto,
   InternalLoginResponseDto,
   ReconnectWisproResponseDto,
+  GetInternalUsersResponseDto,
 } from '@presentation/dto';
 import { JwtPermissiveGuard } from '@presentation/guards/jwt-permissive.guard';
+import { JwtAuthGuard } from '@presentation/guards';
 import { CurrentUser } from '@presentation/decorators';
 import { JwtPayload } from '@infrastructure/auth/jwt';
 
@@ -25,10 +30,18 @@ export class InternalAuthController {
    * Registra un nuevo usuario interno
    *
    * POST /internal-auth/register
+   * 
+   * Requiere: Authorization: Bearer <token-interno>
+   * 
+   * Solo usuarios autenticados pueden crear nuevos usuarios.
    */
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
-  async register(@Body() dto: RegisterInternalUserRequestDto): Promise<InternalUserDto> {
+  @UseGuards(JwtPermissiveGuard) // Requiere autenticación
+  async register(
+    @Body() dto: RegisterInternalUserRequestDto,
+    @CurrentUser() currentUser: JwtPayload,
+  ): Promise<InternalUserDto> {
     const user = await this.internalAuthService.register(
       dto.name,
       dto.email,
@@ -40,7 +53,10 @@ export class InternalAuthController {
       id: user.id,
       name: user.name,
       email: user.email,
+      active: user.active ?? true,
+      wisproEmail: user.wisproEmail,
       createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
     };
   }
 
@@ -59,7 +75,10 @@ export class InternalAuthController {
         id: user.id,
         name: user.name,
         email: user.email,
+        active: user.active ?? true,
+        wisproEmail: user.wisproEmail,
         createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
       },
     };
   }
@@ -180,6 +199,178 @@ export class InternalAuthController {
       accessToken: result.accessToken,
       success: true,
       message: 'Credenciales de Wispro agregadas y validadas correctamente.',
+    };
+  }
+
+  /**
+   * Obtiene la lista de usuarios internos con paginación y estadísticas
+   * 
+   * GET /internal-auth/users
+   * 
+   * Requiere: Authorization: Bearer <token-interno> (opcional, pero recomendado para identificar usuario actual)
+   * 
+   * Query parameters:
+   * - page: número de página (default: 1)
+   * - per_page: elementos por página (default: 20)
+   * - search: término de búsqueda por nombre o email (opcional)
+   * - active: filtrar por usuarios activos/inactivos (opcional, true/false)
+   * 
+   * @param query - Parámetros de consulta y paginación
+   * @param currentUser - Usuario autenticado (opcional, inyectado automáticamente si hay token)
+   * @returns Lista de usuarios paginada con estadísticas, marcando cuál es el usuario actual
+   */
+  @Get('users')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtPermissiveGuard) // Opcional: permite acceso sin token, pero si hay token identifica al usuario actual
+  async getInternalUsers(
+    @Query() query: GetInternalUsersRequestDto,
+    @CurrentUser() currentUser?: JwtPayload,
+  ): Promise<GetInternalUsersResponseDto> {
+    const perPage = query.per_page || 20;
+    const page = query.page || 1;
+    const search = query.search?.trim() || undefined;
+    const active = query.active;
+
+    const { users, total, stats } = await this.internalAuthService.getInternalUsersPaginated(
+      page,
+      perPage,
+      search,
+      active,
+    );
+
+    // Obtener el ID del usuario actual si está autenticado
+    const currentUserId = currentUser?.sub;
+
+    const usersDto: InternalUserDto[] = users.map((user) => ({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      active: user.active ?? true,
+      wisproEmail: user.wisproEmail,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      isCurrentUser: currentUserId ? user.id === currentUserId : false, // Marcar si es el usuario actual
+    }));
+
+    const totalPages = Math.ceil(total / perPage) || 1;
+
+    return {
+      users: usersDto,
+      pagination: {
+        page,
+        per_page: perPage,
+        total,
+        total_pages: totalPages,
+      },
+      stats,
+    };
+  }
+
+  /**
+   * Desactiva un usuario (borrado lógico)
+   * 
+   * DELETE /internal-auth/users/:id
+   * 
+   * Requiere: Authorization: Bearer <token-interno>
+   * 
+   * Solo usuarios autenticados pueden desactivar otros usuarios.
+   * 
+   * @param id - ID del usuario a desactivar
+   * @returns void
+   */
+  @Delete('users/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(JwtPermissiveGuard)
+  async deactivateUser(
+    @Param('id') id: string,
+    @CurrentUser() currentUser: JwtPayload,
+  ): Promise<void> {
+    // No permitir que un usuario se desactive a sí mismo
+    if (currentUser.sub === id) {
+      throw new ConflictException('No puedes desactivar tu propia cuenta');
+    }
+
+    await this.internalAuthService.deactivateUser(id);
+  }
+
+  /**
+   * Actualiza un usuario (solo para usuarios autenticados)
+   * 
+   * PUT /internal-auth/users/:id
+   * 
+   * Requiere: Authorization: Bearer <token-interno>
+   * 
+   * Permite actualizar nombre, email y contraseña de otro usuario.
+   * 
+   * @param id - ID del usuario a actualizar
+   * @param dto - Datos a actualizar (nombre, email, contraseña)
+   * @param currentUser - Usuario autenticado (inyectado automáticamente)
+   * @returns Usuario actualizado
+   */
+  @Put('users/:id')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtPermissiveGuard)
+  async updateUser(
+    @Param('id') id: string,
+    @Body() dto: UpdateInternalUserRequestDto,
+    @CurrentUser() currentUser: JwtPayload,
+  ): Promise<InternalUserDto> {
+    // No permitir que un usuario se actualice a sí mismo usando este endpoint
+    // (debe usar el endpoint /profile para actualizar su propio perfil)
+    if (currentUser.sub === id) {
+      throw new ConflictException('No puedes actualizar tu propia cuenta desde este endpoint. Usa PUT /internal-auth/profile para actualizar tu perfil.');
+    }
+    const updated = await this.internalAuthService.updateUser(id, {
+      name: dto.name,
+      email: dto.email,
+      password: dto.password,
+    });
+
+    return {
+      id: updated.id,
+      name: updated.name,
+      email: updated.email,
+      active: updated.active ?? true,
+      wisproEmail: updated.wisproEmail,
+      createdAt: updated.createdAt,
+      updatedAt: updated.updatedAt,
+    };
+  }
+
+  /**
+   * Actualiza el perfil del usuario autenticado
+   * 
+   * PUT /internal-auth/profile
+   * 
+   * Requiere: Authorization: Bearer <token-interno>
+   * 
+   * Permite que el usuario actualice su propio email y contraseña.
+   * NO permite actualizar el nombre.
+   * 
+   * @param dto - Datos a actualizar (email, contraseña)
+   * @param currentUser - Usuario autenticado (inyectado automáticamente)
+   * @returns Usuario actualizado
+   */
+  @Put('profile')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtPermissiveGuard)
+  async updateOwnProfile(
+    @Body() dto: UpdateOwnProfileRequestDto,
+    @CurrentUser() currentUser: JwtPayload,
+  ): Promise<InternalUserDto> {
+    const updated = await this.internalAuthService.updateOwnProfile(currentUser.sub, {
+      email: dto.email,
+      password: dto.password,
+    });
+
+    return {
+      id: updated.id,
+      name: updated.name,
+      email: updated.email,
+      active: updated.active ?? true,
+      wisproEmail: updated.wisproEmail,
+      createdAt: updated.createdAt,
+      updatedAt: updated.updatedAt,
     };
   }
 }

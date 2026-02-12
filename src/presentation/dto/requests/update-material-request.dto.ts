@@ -1,38 +1,39 @@
 /**
- * Create Material Request DTO
+ * Update Material Request DTO
  * 
- * DTO para la creación de un nuevo material.
+ * DTO para la actualización de un material existente.
  * Soporta tanto JSON como multipart/form-data (para subir imágenes).
+ * Todos los campos son opcionales - solo se actualizan los que se proporcionen.
  */
-import { IsString, IsNotEmpty, MaxLength, IsOptional, IsNumber, Min, IsArray, IsEnum } from 'class-validator';
-import { Type, Transform } from 'class-transformer';
+import { IsString, IsOptional, MaxLength, IsNumber, Min, IsArray, IsEnum } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { MaterialOwnershipType } from '@domain/enums';
 
-export class CreateMaterialRequestDto {
+export class UpdateMaterialRequestDto {
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(255)
-  name: string;
+  name?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(50)
-  unit: string; // Ej: "unidad", "metro", "kg", "litro"
+  unit?: string; // Ej: "unidad", "metro", "kg", "litro"
 
   @IsOptional()
   @Transform(({ value }) => {
-    if (value === undefined || value === null || value === '') return 0;
+    if (value === undefined || value === null || value === '') return undefined;
     const num = Number(value);
-    return isNaN(num) ? 0 : num;
+    return isNaN(num) ? undefined : num;
   })
   @IsNumber()
   @Min(0)
-  minStock?: number = 0;
+  minStock?: number;
 
   @IsOptional()
   @IsString()
   @MaxLength(100)
-  category?: string = 'GENERAL';
+  category?: string;
 
   @IsOptional()
   @IsArray()
@@ -52,6 +53,6 @@ export class CreateMaterialRequestDto {
 
   @IsOptional()
   @IsEnum(MaterialOwnershipType)
-  ownershipType?: MaterialOwnershipType; // TECHNICIAN o CREW (opcional, default: TECHNICIAN)
+  ownershipType?: MaterialOwnershipType; // TECHNICIAN o CREW
 }
 

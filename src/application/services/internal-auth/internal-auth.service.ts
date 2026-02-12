@@ -6,7 +6,7 @@
  * incluye en el payload la sesión de Wispro si el usuario tiene
  * credenciales de Wispro configuradas.
  */
-import { Injectable, ConflictException, UnauthorizedException, Logger } from '@nestjs/common';
+import { Injectable, ConflictException, UnauthorizedException, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
@@ -89,6 +89,7 @@ export class InternalAuthService {
       wisproPasswordEncrypted: wisproPasswordPlain
         ? this.encryptWisproPassword(wisproPasswordPlain)
         : null,
+      active: true, // Por defecto, los usuarios nuevos están activos
     });
 
     return this.internalUserRepository.save(user);
@@ -104,6 +105,11 @@ export class InternalAuthService {
     const user = await this.internalUserRepository.findOne({ where: { email } });
     if (!user) {
       throw new UnauthorizedException('Credenciales inválidas');
+    }
+
+    // Verificar que el usuario esté activo
+    if (!user.active) {
+      throw new UnauthorizedException('Usuario inactivo. Contacta al administrador.');
     }
 
     const isValid = await bcrypt.compare(password, user.passwordHash);
@@ -368,6 +374,171 @@ export class InternalAuthService {
     const accessToken = this.jwtService.sign(payload);
 
     return { accessToken };
+  }
+
+  /**
+   * Obtiene usuarios internos paginados con estadísticas
+   */
+  async getInternalUsersPaginated(
+    page: number = 1,
+    perPage: number = 20,
+    search?: string,
+    active?: boolean,
+  ): Promise<{
+    users: InternalUser[];
+    total: number;
+    stats: { total: number; active: number; inactive: number };
+  }> {
+    const queryBuilder = this.internalUserRepository.createQueryBuilder('user');
+
+    // Aplicar filtro de búsqueda si se proporciona
+    if (search) {
+      queryBuilder.where(
+        '(user.name LIKE :search OR user.email LIKE :search)',
+        { search: `%${search}%` },
+      );
+    }
+
+    // Aplicar filtro de activo/inactivo si se proporciona
+    if (active !== undefined) {
+      if (search) {
+        queryBuilder.andWhere('user.active = :active', { active });
+      } else {
+        queryBuilder.where('user.active = :active', { active });
+      }
+    }
+
+    // Obtener estadísticas (total, activos, inactivos)
+    const total = await this.internalUserRepository.count();
+    const activeCount = await this.internalUserRepository.count({
+      where: { active: true },
+    });
+    const inactiveCount = await this.internalUserRepository.count({
+      where: { active: false },
+    });
+
+    // Aplicar paginación
+    const skip = (page - 1) * perPage;
+    queryBuilder.skip(skip).take(perPage);
+
+    // Ordenar por nombre
+    queryBuilder.orderBy('user.name', 'ASC');
+
+    const [users, totalFiltered] = await queryBuilder.getManyAndCount();
+
+    return {
+      users,
+      total: totalFiltered,
+      stats: {
+        total,
+        active: activeCount,
+        inactive: inactiveCount,
+      },
+    };
+  }
+
+  /**
+   * Desactiva un usuario (borrado lógico)
+   */
+  async deactivateUser(userId: string): Promise<void> {
+    const user = await this.internalUserRepository.findOne({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`Usuario con ID ${userId} no encontrado`);
+    }
+
+    if (!user.active) {
+      throw new ConflictException(`El usuario "${user.name}" ya está inactivo`);
+    }
+
+    user.active = false;
+    await this.internalUserRepository.save(user);
+    this.logger.log(`Usuario desactivado: ${user.name} (${userId})`);
+  }
+
+  /**
+   * Actualiza un usuario (solo para administradores)
+   * Permite actualizar nombre, email y contraseña
+   */
+  async updateUser(
+    userId: string,
+    updates: {
+      name?: string;
+      email?: string;
+      password?: string;
+    },
+  ): Promise<InternalUser> {
+    const user = await this.internalUserRepository.findOne({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`Usuario con ID ${userId} no encontrado`);
+    }
+
+    // Validar que el email no esté en uso por otro usuario
+    if (updates.email && updates.email !== user.email) {
+      const existing = await this.internalUserRepository.findOne({
+        where: { email: updates.email },
+      });
+      if (existing) {
+        throw new ConflictException(`El email ${updates.email} ya está en uso por otro usuario`);
+      }
+      user.email = updates.email;
+    }
+
+    if (updates.name !== undefined) {
+      user.name = updates.name;
+    }
+
+    if (updates.password) {
+      user.passwordHash = await bcrypt.hash(updates.password, this.SALT_ROUNDS);
+    }
+
+    const updated = await this.internalUserRepository.save(user);
+    this.logger.log(`Usuario actualizado: ${updated.name} (${userId})`);
+    return updated;
+  }
+
+  /**
+   * Actualiza el perfil del usuario autenticado
+   * Solo permite actualizar email y contraseña, NO el nombre
+   */
+  async updateOwnProfile(
+    userId: string,
+    updates: {
+      email?: string;
+      password?: string;
+    },
+  ): Promise<InternalUser> {
+    const user = await this.internalUserRepository.findOne({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`Usuario con ID ${userId} no encontrado`);
+    }
+
+    // Validar que el email no esté en uso por otro usuario
+    if (updates.email && updates.email !== user.email) {
+      const existing = await this.internalUserRepository.findOne({
+        where: { email: updates.email },
+      });
+      if (existing) {
+        throw new ConflictException(`El email ${updates.email} ya está en uso por otro usuario`);
+      }
+      user.email = updates.email;
+    }
+
+    if (updates.password) {
+      user.passwordHash = await bcrypt.hash(updates.password, this.SALT_ROUNDS);
+    }
+
+    const updated = await this.internalUserRepository.save(user);
+    this.logger.log(`Perfil actualizado por el usuario: ${updated.name} (${userId})`);
+    return updated;
   }
 }
 

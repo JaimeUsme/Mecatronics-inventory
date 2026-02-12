@@ -8,7 +8,11 @@ import { PaginationDto } from './get-employees-response.dto';
 
 export class GetOrdersResponseDto {
   /**
-   * Lista de órdenes con los campos: id, sequential_id, state, employee_name, orderable_name, full_address, created_at, assigned_at, description
+   * Lista de órdenes con la estructura de Wispro:
+   * - Campos principales: id, sequential_id, state, result, description, created_at, start_at, end_at, finalized_at
+   * - employee_id, employee_name, orderable_name
+   * - gps_point: { full_address }
+   * - ticket: { assigned_at, state, finalized_at }
    */
   orders: OrderDto[];
 

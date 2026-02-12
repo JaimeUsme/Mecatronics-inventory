@@ -10,7 +10,10 @@ import { Repository } from 'typeorm';
 import { JwtPayload } from '@infrastructure/auth/jwt';
 import { ProfileResponseDto, WisproConnectionStatusDto } from '@presentation/dto';
 import { InternalUser } from '@infrastructure/persistence/entities';
-import { GetCurrentUserUseCase } from '../users/get-current-user.use-case';
+import {
+  WisproApiClientService,
+  WisproCurrentUserResponse,
+} from '@infrastructure/external';
 
 @Injectable()
 export class GetProfileUseCase {
@@ -19,7 +22,7 @@ export class GetProfileUseCase {
   constructor(
     @InjectRepository(InternalUser)
     private readonly internalUserRepository: Repository<InternalUser>,
-    private readonly getCurrentUserUseCase: GetCurrentUserUseCase,
+    private readonly wisproApiClient: WisproApiClientService,
   ) {}
 
   /**
@@ -31,6 +34,20 @@ export class GetProfileUseCase {
     // Determinar el estado de conexión con Wispro
     const wisproStatus = this.getWisproConnectionStatus(jwtPayload);
 
+    // Obtener credenciales de Wispro del JWT
+    let csrfToken: string | undefined;
+    let sessionCookie: string | undefined;
+
+    if (jwtPayload.type === 'internal' && jwtPayload.wispro) {
+      // Usuario interno con credenciales de Wispro
+      csrfToken = jwtPayload.wispro.csrfToken;
+      sessionCookie = jwtPayload.wispro.sessionCookie;
+    } else if (jwtPayload.csrfToken && jwtPayload.sessionCookie) {
+      // Token directo de Wispro (solo para compatibilidad con tokens antiguos)
+      csrfToken = jwtPayload.csrfToken;
+      sessionCookie = jwtPayload.sessionCookie;
+    }
+
     // Si es un token interno, obtener información del usuario interno
     if (jwtPayload.type === 'internal') {
       const internalUser = await this.internalUserRepository.findOne({
@@ -41,6 +58,46 @@ export class GetProfileUseCase {
         throw new NotFoundException('Usuario interno no encontrado');
       }
 
+      // Si tiene credenciales válidas de Wispro, obtener información completa de Wispro API
+      if (csrfToken && sessionCookie && wisproStatus.isConnected) {
+        try {
+          const apiResponse: WisproCurrentUserResponse =
+            await this.wisproApiClient.get<WisproCurrentUserResponse>(
+              '/users/current',
+              {
+                csrfToken,
+                sessionCookie,
+              },
+            );
+
+          return {
+            id: internalUser.id,
+            name: internalUser.name,
+            email: internalUser.email,
+            userType: 'internal',
+            phone_mobile: apiResponse.user.userable.phone_mobile,
+            userable_id: apiResponse.user.userable.id,
+            wispro: wisproStatus,
+          };
+        } catch (error) {
+          this.logger.warn(
+            `No se pudo obtener información de Wispro para el usuario interno: ${error?.message}`,
+          );
+          // Si falla, devolver solo información interna
+          return {
+            id: internalUser.id,
+            name: internalUser.name,
+            email: internalUser.email,
+            userType: 'internal',
+            wispro: {
+              ...wisproStatus,
+              isConnected: false, // Si falla la petición, no está conectado
+            },
+          };
+        }
+      }
+
+      // Usuario interno sin credenciales de Wispro o sin conexión activa
       return {
         id: internalUser.id,
         name: internalUser.name,
@@ -50,18 +107,26 @@ export class GetProfileUseCase {
       };
     }
 
-    // Si es un token directo de Wispro, obtener información de Wispro API
-    // Solo intentar si tiene credenciales de Wispro
-    if (jwtPayload.csrfToken && jwtPayload.sessionCookie) {
+    // Token directo de Wispro (solo para compatibilidad con tokens antiguos)
+    if (csrfToken && sessionCookie) {
       try {
-        const wisproUser = await this.getCurrentUserUseCase.execute(jwtPayload);
+        // Obtener información del usuario desde Wispro API
+        const apiResponse: WisproCurrentUserResponse =
+          await this.wisproApiClient.get<WisproCurrentUserResponse>(
+            '/users/current',
+            {
+              csrfToken,
+              sessionCookie,
+            },
+          );
 
         return {
-          id: wisproUser.id,
-          name: wisproUser.name,
-          email: wisproUser.email,
+          id: apiResponse.user.id,
+          name: apiResponse.user.userable.name,
+          email: apiResponse.user.email,
           userType: 'wispro',
-          phone_mobile: wisproUser.phone_mobile,
+          phone_mobile: apiResponse.user.userable.phone_mobile,
+          userable_id: apiResponse.user.userable.id,
           wispro: wisproStatus,
         };
       } catch (error) {
@@ -82,7 +147,7 @@ export class GetProfileUseCase {
       }
     }
 
-    // Token de Wispro sin credenciales válidas (no debería pasar, pero por si acaso)
+    // Token sin credenciales válidas (no debería pasar, pero por si acaso)
     return {
       id: jwtPayload.sub,
       name: jwtPayload.name || jwtPayload.sub,

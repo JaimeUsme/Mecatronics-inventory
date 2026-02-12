@@ -8,7 +8,6 @@ import { ConfigModule } from '@nestjs/config';
 import {
   AuthenticationModule,
   InternalAuthModule,
-  UsersModule,
   EmployeesModule,
   OrdersModule,
   InventoryModule,
@@ -27,7 +26,6 @@ import { DatabaseModule } from './infrastructure/persistence/database.module';
     DatabaseModule, // Módulo de base de datos (TypeORM) - debe ir después de ConfigModule
     InternalAuthModule,
     AuthenticationModule,
-    UsersModule,
     EmployeesModule,
     OrdersModule,
     InventoryModule,

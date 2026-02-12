@@ -2,11 +2,13 @@
  * Authentication Controller
  * 
  * Controlador que maneja los endpoints relacionados con autenticación.
- * Expone endpoints REST para operaciones de login y gestión de sesiones.
+ * Expone el endpoint de perfil para obtener información del usuario autenticado.
+ * 
+ * Nota: El login se realiza a través de /internal-auth/login (login interno de Mecatronics).
  */
-import { Controller, Post, Get, Body, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
-import { LoginUseCase, GetProfileUseCase } from '@application/use-cases';
-import { LoginRequestDto, LoginResponseDto, ProfileResponseDto } from '@presentation/dto';
+import { Controller, Get, UseGuards } from '@nestjs/common';
+import { GetProfileUseCase } from '@application/use-cases';
+import { ProfileResponseDto } from '@presentation/dto';
 import { JwtPermissiveGuard } from '@presentation/guards/jwt-permissive.guard';
 import { CurrentUser } from '@presentation/decorators';
 import { JwtPayload } from '@infrastructure/auth/jwt';
@@ -14,31 +16,8 @@ import { JwtPayload } from '@infrastructure/auth/jwt';
 @Controller('auth')
 export class AuthenticationController {
   constructor(
-    private readonly loginUseCase: LoginUseCase,
     private readonly getProfileUseCase: GetProfileUseCase,
   ) {}
-
-  /**
-   * Endpoint de login
-   * 
-   * Realiza el login en Wispro mediante automatización con Playwright
-   * y retorna las cookies de sesión y el token CSRF.
-   * 
-   * @param loginDto - Credenciales de login (email y password)
-   * @returns Resultado con cookies y CSRF token
-   * 
-   * @example
-   * POST /auth/login
-   * {
-   *   "email": "usuario@example.com",
-   *   "password": "miPassword123"
-   * }
-   */
-  @Post('login')
-  @HttpCode(HttpStatus.OK)
-  async login(@Body() loginDto: LoginRequestDto): Promise<LoginResponseDto> {
-    return this.loginUseCase.execute(loginDto);
-  }
 
   /**
    * Endpoint de perfil

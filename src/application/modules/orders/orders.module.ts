@@ -10,33 +10,43 @@ import { Module } from '@nestjs/common';
 import { WisproApiModule } from '@infrastructure/external';
 import {
   GetOrdersUseCase,
+  GetOrderCountsUseCase,
   GetOrderImagesUseCase,
   UploadOrderImageUseCase,
   DeleteOrderImageUseCase,
   GetOrderFeedbacksUseCase,
   CreateOrderFeedbackUseCase,
+  RescheduleOrderUseCase,
+  CloseOrderUseCase,
 } from '@application/use-cases';
 import { OrdersController } from '@presentation/controllers';
 import { OrderCrewSnapshotModule } from '@application/services/orders/order-crew-snapshot.module';
+import { AuthenticationModule } from '../authentication/authentication.module';
 
 @Module({
-  imports: [WisproApiModule, OrderCrewSnapshotModule],
+  imports: [WisproApiModule, OrderCrewSnapshotModule, AuthenticationModule],
   controllers: [OrdersController],
   providers: [
     GetOrdersUseCase,
+    GetOrderCountsUseCase,
     GetOrderImagesUseCase,
     UploadOrderImageUseCase,
     DeleteOrderImageUseCase,
     GetOrderFeedbacksUseCase,
     CreateOrderFeedbackUseCase,
+    RescheduleOrderUseCase,
+    CloseOrderUseCase,
   ],
   exports: [
     GetOrdersUseCase,
+    GetOrderCountsUseCase,
     GetOrderImagesUseCase,
     UploadOrderImageUseCase,
     DeleteOrderImageUseCase,
     GetOrderFeedbacksUseCase,
     CreateOrderFeedbackUseCase,
+    RescheduleOrderUseCase,
+    CloseOrderUseCase,
   ],
 })
 export class OrdersModule {}
