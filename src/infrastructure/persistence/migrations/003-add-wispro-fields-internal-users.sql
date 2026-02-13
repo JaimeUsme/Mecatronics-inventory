@@ -7,3 +7,4 @@ ALTER TABLE internal_users
   ADD COLUMN wisproPasswordEncrypted VARCHAR(255) NULL;
 
 
+

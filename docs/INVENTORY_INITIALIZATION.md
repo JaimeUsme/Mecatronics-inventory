@@ -282,3 +282,4 @@ Una vez inicializado el sistema, puedes:
    GET /inventory/technician/:locationId
    ```
 
+

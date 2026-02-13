@@ -10,3 +10,4 @@ ALTER TABLE locations
   ADD CONSTRAINT unique_location_type_reference 
   UNIQUE (type, referenceId);
 
+

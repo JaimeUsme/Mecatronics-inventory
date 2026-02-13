@@ -28,3 +28,4 @@ mysql -u root -p wispro_inventory < src/infrastructure/persistence/migrations/00
 - Los tipos ENUM en PostgreSQL deben crearse antes de las tablas
 - TypeORM puede generar migraciones automáticamente si configuras `synchronize: false`
 
+

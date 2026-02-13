@@ -58,6 +58,20 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       };
     }
 
+    // Caso C: token móvil de Mecatronics con sección wisproMobile válida
+    // Solo aceptar si loginSuccess es explícitamente true y tiene token
+    if (
+      payload.type === 'mobile' &&
+      payload.wisproMobile &&
+      payload.wisproMobile.loginSuccess === true &&
+      payload.wisproMobile.token
+    ) {
+      this.logger.debug(
+        `JWT móvil con sesión Wispro mobile válido para usuario: ${payload.sub}`,
+      );
+      return payload;
+    }
+
     // Si tiene credenciales pero loginSuccess no es true, rechazar
     if (
       payload.type === 'internal' &&
@@ -70,6 +84,20 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       );
       throw new UnauthorizedException(
         'Token inválido: las credenciales de Wispro no son válidas. Usa /internal-auth/reconnect-wispro para reconectar.',
+      );
+    }
+
+    // Si tiene credenciales móviles pero loginSuccess no es true, rechazar
+    if (
+      payload.type === 'mobile' &&
+      payload.wisproMobile &&
+      (payload.wisproMobile.loginSuccess === false || payload.wisproMobile.loginSuccess === undefined)
+    ) {
+      this.logger.warn(
+        `Token móvil con Wispro mobile vinculado pero login fallido o no exitoso para usuario: ${payload.sub}`,
+      );
+      throw new UnauthorizedException(
+        'Token inválido: las credenciales de Wispro mobile no son válidas. Usa /mobile/v1/login para reconectar.',
       );
     }
 

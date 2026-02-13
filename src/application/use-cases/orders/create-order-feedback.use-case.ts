@@ -7,7 +7,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { WisproApiClientService } from '@infrastructure/external';
 import { JwtPayload } from '@infrastructure/auth/jwt';
-import { CreateOrderFeedbackRequestDto, GetOrderFeedbacksResponseDto } from '@presentation/dto';
+import { CreateOrderFeedbackRequestDto, OrderFeedbackDto } from '@presentation/dto';
 import { GetOrderFeedbacksUseCase } from './get-order-feedbacks.use-case';
 
 /**
@@ -43,17 +43,18 @@ export class CreateOrderFeedbackUseCase {
   /**
    * Ejecuta el caso de uso para crear un feedback en una orden
    * Las credenciales se obtienen del JWT token
-   * Después de crear el feedback, obtiene la lista completa de feedbacks separados
+   * Después de crear el feedback, obtiene la lista completa de feedbacks normales
+   * (excluyendo materiales, incluyendo el nuevo feedback creado)
    * @param orderId - ID de la orden
    * @param requestDto - Datos del feedback a crear
    * @param jwtPayload - Payload del JWT token con las credenciales de Wispro
-   * @returns Objeto con feedbacks normales y materiales separados (incluyendo el nuevo)
+   * @returns Array de feedbacks normales (sin materiales, incluyendo el nuevo)
    */
   async execute(
     orderId: string,
     requestDto: CreateOrderFeedbackRequestDto,
     jwtPayload: JwtPayload,
-  ): Promise<GetOrderFeedbacksResponseDto> {
+  ): Promise<OrderFeedbackDto[]> {
     this.logger.log(
       `Creando feedback en la orden ${orderId} para usuario: ${jwtPayload.sub}`,
     );
@@ -85,14 +86,14 @@ export class CreateOrderFeedbackUseCase {
       `Feedback creado exitosamente: ${apiResponse.id} para la orden ${orderId}`,
     );
 
-    // Después de crear el feedback, obtener la lista completa de feedbacks
+    // Después de crear el feedback, obtener la lista completa de feedbacks normales
     const allFeedbacks = await this.getOrderFeedbacksUseCase.execute(
       orderId,
       jwtPayload,
     );
 
     this.logger.log(
-      `Lista de feedbacks obtenida: ${allFeedbacks.feedbacks.length} feedbacks normales, ${allFeedbacks.materials.length} materiales para la orden ${orderId}`,
+      `Lista de feedbacks obtenida: ${allFeedbacks.length} feedbacks normales (materiales excluidos) para la orden ${orderId}`,
     );
 
     return allFeedbacks;

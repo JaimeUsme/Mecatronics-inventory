@@ -11,3 +11,4 @@ UPDATE locations
 SET active = TRUE
 WHERE active IS NULL;
 
+

@@ -32,3 +32,4 @@ CREATE TABLE IF NOT EXISTS order_crew_snapshots (
 -- 4. Si crewId es NULL, significa que el empleado no estaba en ninguna cuadrilla
 -- 5. Los índices mejoran el rendimiento de las consultas
 
+

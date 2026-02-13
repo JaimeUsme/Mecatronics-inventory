@@ -34,3 +34,4 @@ export interface IInventoryRepository {
   saveMany(inventories: Inventory[]): Promise<Inventory[]>;
 }
 
+

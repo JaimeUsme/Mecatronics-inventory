@@ -11,3 +11,4 @@
 ALTER TABLE materials
   DROP COLUMN minStock;
 
+

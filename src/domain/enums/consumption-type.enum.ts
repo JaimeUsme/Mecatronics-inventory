@@ -15,3 +15,4 @@ export enum ConsumptionType {
   DAMAGED = 'DAMAGED',
 }
 
+

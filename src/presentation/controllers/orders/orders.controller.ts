@@ -29,6 +29,8 @@ import {
   DeleteOrderImageUseCase,
   GetOrderFeedbacksUseCase,
   CreateOrderFeedbackUseCase,
+  CreateMaterialExpenseUseCase,
+  GetMaterialExpensesUseCase,
   RescheduleOrderUseCase,
   CloseOrderUseCase,
   GetProfileUseCase,
@@ -41,8 +43,9 @@ import {
   OrderImageDto,
   GetOrderImagesResponseDto,
   OrderFeedbackDto,
-  GetOrderFeedbacksResponseDto,
   CreateOrderFeedbackRequestDto,
+  CreateMaterialExpenseRequestDto,
+  GetMaterialExpensesResponseDto,
   RescheduleOrderRequestDto,
 } from '@presentation/dto';
 import { JwtAuthGuard } from '@presentation/guards';
@@ -59,6 +62,8 @@ export class OrdersController {
     private readonly deleteOrderImageUseCase: DeleteOrderImageUseCase,
     private readonly getOrderFeedbacksUseCase: GetOrderFeedbacksUseCase,
     private readonly createOrderFeedbackUseCase: CreateOrderFeedbackUseCase,
+    private readonly createMaterialExpenseUseCase: CreateMaterialExpenseUseCase,
+    private readonly getMaterialExpensesUseCase: GetMaterialExpensesUseCase,
     private readonly rescheduleOrderUseCase: RescheduleOrderUseCase,
     private readonly closeOrderUseCase: CloseOrderUseCase,
     private readonly getProfileUseCase: GetProfileUseCase,
@@ -335,30 +340,33 @@ export class OrdersController {
    * 
    * Obtiene los feedbacks asociados a una orden desde la API de Wispro
    * usando las credenciales de autenticación del JWT token.
-   * Separa los feedbacks normales de los que contienen información de materiales.
+   * Excluye los feedbacks de materiales (solo devuelve feedbacks normales/comentarios).
    * 
    * Requiere un JWT token válido en el header Authorization: Bearer <token>
    * 
    * @param orderId - ID de la orden
    * @param user - Payload del JWT token (inyectado automáticamente por el guard)
-   * @returns Objeto con feedbacks normales y materiales separados
+   * @returns Array de feedbacks normales (sin materiales)
    * 
    * @example
    * GET /orders/c530112f-21ac-48ab-948b-609dbd0cf4e2/feedbacks
    * Authorization: Bearer <jwt-token>
    * 
    * Response:
-   * {
-   *   "feedbacks": [...], // Feedbacks normales (comentarios)
-   *   "materials": [...] // Feedbacks de materiales
-   * }
+   * [
+   *   {
+   *     "id": "...",
+   *     "body": "Comentario normal",
+   *     ...
+   *   }
+   * ]
    */
   @Get(':orderId/feedbacks')
   @UseGuards(JwtAuthGuard)
   async getOrderFeedbacks(
     @Param('orderId') orderId: string,
     @CurrentUser() user: JwtPayload,
-  ): Promise<GetOrderFeedbacksResponseDto> {
+  ): Promise<OrderFeedbackDto[]> {
     return this.getOrderFeedbacksUseCase.execute(orderId, user);
   }
 
@@ -367,15 +375,15 @@ export class OrdersController {
    * 
    * Crea un feedback en una orden en la API de Wispro
    * usando las credenciales de autenticación del JWT token.
-   * Después de crear el feedback, devuelve la lista completa de feedbacks separados
-   * (incluyendo el nuevo feedback creado).
+   * Después de crear el feedback, devuelve la lista completa de feedbacks normales
+   * (excluyendo materiales, incluyendo el nuevo feedback creado).
    * 
    * Requiere un JWT token válido en el header Authorization: Bearer <token>
    * 
    * @param orderId - ID de la orden
    * @param dto - Datos del feedback a crear
    * @param user - Payload del JWT token (inyectado automáticamente por el guard)
-   * @returns Objeto con feedbacks normales y materiales separados (incluyendo el nuevo)
+   * @returns Array de feedbacks normales (sin materiales, incluyendo el nuevo)
    * 
    * @example
    * POST /orders/c530112f-21ac-48ab-948b-609dbd0cf4e2/feedbacks
@@ -384,16 +392,19 @@ export class OrdersController {
    * Body: {
    *   "feedback": {
    *     "body": "Excelente servicio",
-   *     "feedback_kind_id": "bd40d1ad-5b89-42a4-a70f-2ec8b2392e16"
+   *     "feedback_kind_id": "otro-id"
    *   },
    *   "locale": "es"
    * }
    * 
    * Response:
-   * {
-   *   "feedbacks": [...], // Feedbacks normales (comentarios)
-   *   "materials": [...] // Feedbacks de materiales
-   * }
+   * [
+   *   {
+   *     "id": "...",
+   *     "body": "Excelente servicio",
+   *     ...
+   *   }
+   * ]
    */
   @Post(':orderId/feedbacks')
   @UseGuards(JwtAuthGuard)
@@ -402,8 +413,122 @@ export class OrdersController {
     @Param('orderId') orderId: string,
     @Body() dto: CreateOrderFeedbackRequestDto,
     @CurrentUser() user: JwtPayload,
-  ): Promise<GetOrderFeedbacksResponseDto> {
+  ): Promise<OrderFeedbackDto[]> {
     return this.createOrderFeedbackUseCase.execute(orderId, dto, user);
+  }
+
+  /**
+   * Endpoint para obtener los gastos de material de una orden
+   * 
+   * Obtiene solo los gastos de material (feedbacks de tipo material) de una orden
+   * desde la API de Wispro usando las credenciales de autenticación del JWT token.
+   * 
+   * Requiere un JWT token válido en el header Authorization: Bearer <token>
+   * 
+   * @param orderId - ID de la orden
+   * @param user - Payload del JWT token (inyectado automáticamente por el guard)
+   * @returns Lista de gastos de material (solo materiales, sin feedbacks normales)
+   * 
+   * @example
+   * GET /orders/c530112f-21ac-48ab-948b-609dbd0cf4e2/materials
+   * Authorization: Bearer <jwt-token>
+   * 
+   * Response:
+   * {
+   *   "materials": [
+   *     {
+   *       "id": "material-id-123",
+   *       "name": "Cable UTP",
+   *       "quantityUsed": 10,
+   *       "quantityDamaged": 0,
+   *       "unit": "metros"
+   *     },
+   *     {
+   *       "id": "material-id-456",
+   *       "name": "Conector RJ45",
+   *       "quantityUsed": 2,
+   *       "quantityDamaged": 1,
+   *       "unit": "unidades"
+   *     }
+   *   ]
+   * }
+   */
+  @Get(':orderId/materials')
+  @UseGuards(JwtAuthGuard)
+  async getMaterialExpenses(
+    @Param('orderId') orderId: string,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<GetMaterialExpensesResponseDto> {
+    return this.getMaterialExpensesUseCase.execute(orderId, user);
+  }
+
+  /**
+   * Endpoint para crear un gasto de material en una orden
+   * 
+   * Crea un gasto de material en una orden en la API de Wispro.
+   * Los materiales se envían en un formato amigable y se convierten a JSON en el backend
+   * antes de enviarlos a Wispro con el feedback_kind_id correcto.
+   * 
+   * Requiere un JWT token válido en el header Authorization: Bearer <token>
+   * 
+   * @param orderId - ID de la orden
+   * @param dto - Datos de los materiales a registrar
+   * @param user - Payload del JWT token (inyectado automáticamente por el guard)
+   * @returns Lista de gastos de material (incluyendo el nuevo)
+   * 
+   * @example
+   * POST /orders/c530112f-21ac-48ab-948b-609dbd0cf4e2/materials
+   * Authorization: Bearer <jwt-token>
+   * Content-Type: application/json
+   * Body: {
+   *   "materials": [
+   *     {
+   *       "id": "material-id-123",
+   *       "name": "Cable UTP",
+   *       "quantityUsed": 10,
+   *       "quantityDamaged": 0,
+   *       "unit": "metros"
+   *     },
+   *     {
+   *       "id": "material-id-456",
+   *       "name": "Conector RJ45",
+   *       "quantityUsed": 2,
+   *       "quantityDamaged": 1,
+   *       "unit": "unidades"
+   *     }
+   *   ],
+   *   "locale": "es"
+   * }
+   * 
+   * Response:
+   * {
+   *   "materials": [
+   *     {
+   *       "id": "material-id-123",
+   *       "name": "Cable UTP",
+   *       "quantityUsed": 10,
+   *       "quantityDamaged": 0,
+   *       "unit": "metros"
+   *     },
+   *     {
+   *       "id": "material-id-456",
+   *       "name": "Conector RJ45",
+   *       "quantityUsed": 2,
+   *       "quantityDamaged": 1,
+   *       "unit": "unidades"
+   *     }
+   *   ]
+   * }
+   */
+  @Post(':orderId/materials')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async createMaterialExpense(
+    @Param('orderId') orderId: string,
+    @Body() dto: CreateMaterialExpenseRequestDto,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<GetMaterialExpensesResponseDto> {
+    return this.createMaterialExpenseUseCase.execute(orderId, dto, user);
   }
 
   /**

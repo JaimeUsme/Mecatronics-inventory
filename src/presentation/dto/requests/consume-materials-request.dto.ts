@@ -38,3 +38,4 @@ export class ConsumeMaterialsRequestDto {
   serviceOrderId: string; // ID de la orden de servicio de Wispro
 }
 
+

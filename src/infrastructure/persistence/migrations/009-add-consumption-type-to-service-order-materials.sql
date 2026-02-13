@@ -9,3 +9,4 @@ AFTER technicianId;
 -- Agregar índice para consultas por tipo de consumo
 CREATE INDEX idx_service_order_materials_consumption_type ON service_order_materials(consumptionType);
 
+

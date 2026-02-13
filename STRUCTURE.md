@@ -205,3 +205,4 @@ import { LoginUseCase } from '@application';
 5. **Implementar adaptadores** en `infrastructure/adapters/`
 6. **Agregar DTOs** en `presentation/dto/` y `application/dto/`
 
+

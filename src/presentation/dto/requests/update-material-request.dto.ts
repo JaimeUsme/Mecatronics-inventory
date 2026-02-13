@@ -56,3 +56,4 @@ export class UpdateMaterialRequestDto {
   ownershipType?: MaterialOwnershipType; // TECHNICIAN o CREW
 }
 
+

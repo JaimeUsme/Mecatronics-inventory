@@ -74,15 +74,15 @@ export class GetOrderFeedbacksUseCase {
   /**
    * Ejecuta el caso de uso para obtener los feedbacks de una orden
    * Las credenciales se obtienen del JWT token
-   * Separa los feedbacks normales de los que contienen información de materiales
+   * Excluye los feedbacks de materiales (solo devuelve feedbacks normales/comentarios)
    * @param orderId - ID de la orden
    * @param jwtPayload - Payload del JWT token con las credenciales de Wispro
-   * @returns Objeto con feedbacks normales y materiales separados
+   * @returns Array de feedbacks normales (sin materiales)
    */
   async execute(
     orderId: string,
     jwtPayload: JwtPayload,
-  ): Promise<GetOrderFeedbacksResponseDto> {
+  ): Promise<OrderFeedbackDto[]> {
     this.logger.log(
       `Obteniendo feedbacks de la orden ${orderId} para usuario: ${jwtPayload.sub}`,
     );
@@ -117,18 +117,15 @@ export class GetOrderFeedbacksUseCase {
       }),
     );
 
-    // Separar feedbacks normales de materiales
-    const materials = allFeedbacks.filter((f) => this.isMaterialFeedback(f));
+    // Filtrar solo feedbacks normales (excluir materiales)
     const feedbacks = allFeedbacks.filter((f) => !this.isMaterialFeedback(f));
 
     this.logger.log(
-      `Feedbacks obtenidos exitosamente: ${feedbacks.length} feedbacks normales, ${materials.length} materiales para la orden ${orderId}`,
+      `Feedbacks obtenidos exitosamente: ${feedbacks.length} feedbacks normales (${allFeedbacks.length - feedbacks.length} materiales excluidos) para la orden ${orderId}`,
     );
 
-    return {
-      feedbacks,
-      materials,
-    };
+    // Devolver solo feedbacks normales (sin materiales)
+    return feedbacks;
   }
 }
 

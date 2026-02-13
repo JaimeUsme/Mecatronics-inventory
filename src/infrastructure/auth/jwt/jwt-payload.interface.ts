@@ -50,6 +50,27 @@ export interface JwtPayload {
   };
 
   /**
+   * Información opcional de Wispro Mobile cuando el token es móvil.
+   * Si existe y tiene token, se puede usar para autenticar contra la API móvil de Wispro.
+   */
+  wisproMobile?: {
+    token?: string;
+    user?: {
+      name?: string;
+      email?: string;
+      roles?: string[];
+      phone?: string;
+      phone_mobile?: string;
+    };
+    isp?: {
+      name?: string;
+      language?: string;
+      time_zone?: string;
+    };
+    loginSuccess?: boolean;
+  };
+
+  /**
    * Timestamp de cuando se emitió el token
    */
   iat?: number;

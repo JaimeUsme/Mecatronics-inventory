@@ -14,3 +14,4 @@ CREATE INDEX idx_materials_deletedAt ON materials(deletedAt);
 ALTER TABLE materials 
 MODIFY COLUMN deletedAt TIMESTAMP NULL DEFAULT NULL COMMENT 'Fecha de eliminación (borrado lógico). Si es NULL, el material está activo.';
 
+

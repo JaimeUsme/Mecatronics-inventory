@@ -168,3 +168,4 @@ El módulo de automatización (`infrastructure/automation`) contiene scripts de 
 
 Este módulo puede ser usado por casos de uso de aplicación para automatizar procesos de autenticación.
 
+

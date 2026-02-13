@@ -16,3 +16,4 @@ MODIFY COLUMN type ENUM('TRANSFER', 'CONSUMPTION', 'ADJUSTMENT', 'DAMAGED') NOT 
 -- 2. Los valores existentes no se ven afectados
 -- 3. Esta migración es compatible con MySQL 5.7+
 
+

@@ -14,3 +14,4 @@ CREATE INDEX idx_internal_users_active ON internal_users(active);
 ALTER TABLE internal_users 
 MODIFY COLUMN active BOOLEAN DEFAULT TRUE NOT NULL COMMENT 'Indica si el usuario está activo. Los usuarios inactivos no pueden hacer login.';
 
+

@@ -8,6 +8,8 @@ export * from './upload-order-image.use-case';
 export * from './delete-order-image.use-case';
 export * from './get-order-feedbacks.use-case';
 export * from './create-order-feedback.use-case';
+export * from './create-material-expense.use-case';
+export * from './get-material-expenses.use-case';
 export * from './reschedule-order.use-case';
 export * from './close-order.use-case';
 

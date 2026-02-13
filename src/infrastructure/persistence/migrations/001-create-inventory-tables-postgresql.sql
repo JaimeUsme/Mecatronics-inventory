@@ -101,3 +101,4 @@ CREATE INDEX IF NOT EXISTS idx_service_order_materials_order ON service_order_ma
 CREATE INDEX IF NOT EXISTS idx_service_order_materials_technician ON service_order_materials("technicianId");
 CREATE INDEX IF NOT EXISTS idx_service_order_materials_material ON service_order_materials("materialId");
 
+

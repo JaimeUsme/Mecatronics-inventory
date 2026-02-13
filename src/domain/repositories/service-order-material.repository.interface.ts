@@ -17,3 +17,4 @@ export interface IServiceOrderMaterialRepository {
   findByServiceOrder(serviceOrderId: string): Promise<ServiceOrderMaterial[]>;
 }
 
+

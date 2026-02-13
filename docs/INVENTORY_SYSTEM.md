@@ -331,3 +331,4 @@ await inventoryService.consumeMaterialInOrder({
 - Las transacciones aseguran la consistencia de datos
 - Los índices mejoran el rendimiento de las consultas
 
+

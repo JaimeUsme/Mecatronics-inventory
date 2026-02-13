@@ -16,3 +16,4 @@ export class AdjustInventoryRequestDto {
   quantity: number; // Puede ser positivo (agregar) o negativo (quitar)
 }
 
+
