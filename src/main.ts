@@ -28,10 +28,20 @@ async function bootstrap() {
       : corsOriginRaw.split(',').map((origin) => origin.trim()).filter(Boolean);
 
   // Habilitar CORS
+  // En producción, define CORS_ORIGIN con el origen del frontend (ej: https://app.ejemplo.com)
+  // o varios separados por coma. Usar * o no definir permite cualquier origen.
   app.enableCors({
     origin: corsOrigin,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'Accept',
+      'Accept-Language',
+      'Origin',
+      'X-Requested-With',
+    ],
+    exposedHeaders: ['Authorization'],
     credentials: true, // Permite enviar cookies y headers de autenticación
   });
   
