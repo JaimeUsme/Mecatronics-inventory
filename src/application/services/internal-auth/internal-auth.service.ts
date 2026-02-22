@@ -73,6 +73,8 @@ export class InternalAuthService {
     password: string,
     wisproEmail?: string,
     wisproPasswordPlain?: string,
+    position?: string,
+    documentNumber?: string,
   ): Promise<InternalUser> {
     const existing = await this.internalUserRepository.findOne({ where: { email } });
     if (existing) {
@@ -89,7 +91,9 @@ export class InternalAuthService {
       wisproPasswordEncrypted: wisproPasswordPlain
         ? this.encryptWisproPassword(wisproPasswordPlain)
         : null,
-      active: true, // Por defecto, los usuarios nuevos están activos
+      position: position || null,
+      documentNumber: documentNumber || null,
+      active: true,
     });
 
     return this.internalUserRepository.save(user);
@@ -158,8 +162,10 @@ export class InternalAuthService {
     // Payload del JWT interno con información opcional de Wispro
     const payload: any = {
       sub: user.id,
+      id: user.id,
       email: user.email,
       name: user.name,
+      position: user.position ?? null,
       type: 'internal',
     };
 
@@ -265,8 +271,10 @@ export class InternalAuthService {
       // Generar nuevo JWT con las credenciales de Wispro
       const payload: any = {
         sub: user.id,
+        id: user.id,
         email: user.email,
         name: user.name,
+        position: user.position ?? null,
         type: 'internal',
         wispro: {
           linked: true,
@@ -359,8 +367,10 @@ export class InternalAuthService {
     // Generar nuevo JWT con las credenciales de Wispro
     const payload: any = {
       sub: user.id,
+      id: user.id,
       email: user.email,
       name: user.name,
+      position: user.position ?? null,
       type: 'internal',
       wispro: {
         linked: true,
@@ -468,6 +478,8 @@ export class InternalAuthService {
       name?: string;
       email?: string;
       password?: string;
+      position?: string;
+      documentNumber?: string;
     },
   ): Promise<InternalUser> {
     const user = await this.internalUserRepository.findOne({
@@ -493,6 +505,14 @@ export class InternalAuthService {
       user.name = updates.name;
     }
 
+    if (updates.position !== undefined) {
+      user.position = updates.position;
+    }
+
+    if (updates.documentNumber !== undefined) {
+      user.documentNumber = updates.documentNumber;
+    }
+
     if (updates.password) {
       user.passwordHash = await bcrypt.hash(updates.password, this.SALT_ROUNDS);
     }
@@ -500,6 +520,23 @@ export class InternalAuthService {
     const updated = await this.internalUserRepository.save(user);
     this.logger.log(`Usuario actualizado: ${updated.name} (${userId})`);
     return updated;
+  }
+
+  /**
+   * Returns name, documentNumber and position of all active internal users.
+   */
+  async getActiveUsersBasicInfo(): Promise<{ name: string; documentNumber: string | null; position: string | null }[]> {
+    const users = await this.internalUserRepository.find({
+      where: { active: true },
+      select: ['name', 'documentNumber', 'position'],
+      order: { name: 'ASC' },
+    });
+
+    return users.map((u) => ({
+      name: u.name,
+      documentNumber: u.documentNumber ?? null,
+      position: u.position ?? null,
+    }));
   }
 
   /**

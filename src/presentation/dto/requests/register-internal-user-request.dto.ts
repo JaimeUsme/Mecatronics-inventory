@@ -22,6 +22,22 @@ export class RegisterInternalUserRequestDto {
   password: string;
 
   /**
+   * Job position or role within the organization (optional).
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  position?: string;
+
+  /**
+   * Identity document number (optional).
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  documentNumber?: string;
+
+  /**
    * Email de Wispro (opcional). Si se envía junto con wisproPassword,
    * el sistema intentará vincular y loguear Wispro automáticamente.
    */

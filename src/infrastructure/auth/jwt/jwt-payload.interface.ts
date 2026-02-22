@@ -12,6 +12,12 @@ export interface JwtPayload {
   sub: string;
 
   /**
+   * ID del usuario interno (mismo que sub para tokens internal/mobile).
+   * Incluido explícitamente para acceso directo al id interno.
+   */
+  id?: string;
+
+  /**
    * Email del usuario (interno o de Wispro, dependiendo del contexto)
    */
   email?: string;
@@ -20,6 +26,11 @@ export interface JwtPayload {
    * Nombre del usuario (solo para tokens internos)
    */
   name?: string;
+
+  /**
+   * Job position or role within the organization (only for internal tokens)
+   */
+  position?: string | null;
 
   /**
    * Tipo de token (por ejemplo: 'internal' para login de Mecatronics)

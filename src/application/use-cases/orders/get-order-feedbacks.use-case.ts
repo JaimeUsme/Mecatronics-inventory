@@ -1,11 +1,12 @@
 /**
  * Get Order Feedbacks Use Case
- * 
+ *
  * Caso de uso que obtiene los feedbacks de una orden desde la API de Wispro.
  * Utiliza el cliente HTTP de Wispro para hacer la petición autenticada.
  */
 import { Injectable, Logger } from '@nestjs/common';
-import { WisproApiClientService } from '@infrastructure/external';
+import { WisproApiWrapperService } from '@infrastructure/external';
+import { TokenRefreshContextService } from '@application/services/token-refresh-context.service';
 import { JwtPayload } from '@infrastructure/auth/jwt';
 import { OrderFeedbackDto, GetOrderFeedbacksResponseDto } from '@presentation/dto';
 
@@ -35,7 +36,10 @@ type WisproOrderFeedbacksApiResponse = Array<{
 export class GetOrderFeedbacksUseCase {
   private readonly logger = new Logger(GetOrderFeedbacksUseCase.name);
 
-  constructor(private readonly wisproApiClient: WisproApiClientService) {}
+  constructor(
+    private readonly wisproApiClient: WisproApiWrapperService,
+    private readonly tokenRefreshContext: TokenRefreshContextService,
+  ) {}
 
   /**
    * Constante para el ID del tipo de feedback de materiales
@@ -90,15 +94,21 @@ export class GetOrderFeedbacksUseCase {
     const feedbacksUrl = `/order/orders/${orderId}/feedbacks`;
 
     // Realizar petición autenticada a la API de Wispro
-    const apiResponse: WisproOrderFeedbacksApiResponse =
-      await this.wisproApiClient.get<WisproOrderFeedbacksApiResponse>(
-        feedbacksUrl,
-        {
-          csrfToken: jwtPayload.csrfToken,
-          sessionCookie: jwtPayload.sessionCookie,
-          customReferer: 'https://cloud.wispro.co/order/orders?locale=es',
-        },
-      );
+    const wrappedResponse = await this.wisproApiClient.get<WisproOrderFeedbacksApiResponse>(
+      feedbacksUrl,
+      {
+        csrfToken: jwtPayload.csrfToken,
+        sessionCookie: jwtPayload.sessionCookie,
+        customReferer: 'https://cloud.wispro.co/order/orders?locale=es',
+        userId: jwtPayload.sub,
+      },
+    );
+
+    if (wrappedResponse.newJwt) {
+      this.tokenRefreshContext.setNewJwt(wrappedResponse.newJwt);
+    }
+
+    const apiResponse = wrappedResponse.data;
 
     // Mapear respuesta de la API a nuestro DTO
     const allFeedbacks: OrderFeedbackDto[] = (Array.isArray(apiResponse) ? apiResponse : []).map(

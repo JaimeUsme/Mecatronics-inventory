@@ -1,11 +1,12 @@
 /**
  * Close Order Use Case
- * 
+ *
  * Caso de uso que cierra una orden en la API de Wispro.
  * Cierra el ticket asociado a la orden cambiando su estado a "closed".
  */
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { WisproApiClientService } from '@infrastructure/external';
+import { WisproApiWrapperService } from '@infrastructure/external';
+import { TokenRefreshContextService } from '@application/services/token-refresh-context.service';
 import { JwtPayload } from '@infrastructure/auth/jwt';
 
 /**
@@ -26,7 +27,10 @@ export class CloseOrderUseCase {
   private readonly STATE = 'closed';
   private readonly LOCALE = 'es';
 
-  constructor(private readonly wisproApiClient: WisproApiClientService) {}
+  constructor(
+    private readonly wisproApiClient: WisproApiWrapperService,
+    private readonly tokenRefreshContext: TokenRefreshContextService,
+  ) {}
 
   /**
    * Ejecuta el caso de uso para cerrar una orden
@@ -45,19 +49,26 @@ export class CloseOrderUseCase {
 
     // Primero obtener la orden para extraer el ticketable_id
     const orderUrl = `/order/orders/${orderId}`;
-    
+
     this.logger.debug(`Obteniendo orden ${orderId} para extraer ticketable_id`);
 
-    const orderResponse: any = await this.wisproApiClient.get<any>(orderUrl, {
+    const wrappedOrderResponse = await this.wisproApiClient.get<any>(orderUrl, {
       csrfToken: jwtPayload.csrfToken,
       sessionCookie: jwtPayload.sessionCookie,
       customReferer: 'https://cloud.wispro.co/order/orders?locale=es',
+      userId: jwtPayload.sub,
     });
 
+    if (wrappedOrderResponse.newJwt) {
+      this.tokenRefreshContext.setNewJwt(wrappedOrderResponse.newJwt);
+    }
+
+    const orderResponse = wrappedOrderResponse.data;
+
     // Extraer el ticketable_id de la respuesta
-    // La orden puede venir en diferentes formatos: array de arrays o objeto
+    // La orden puede venir en diferentes formatos: array de arrays u objeto
     let order: any = null;
-    
+
     if (Array.isArray(orderResponse) && orderResponse.length > 0) {
       // Si es array de arrays, tomar el primer elemento
       order = Array.isArray(orderResponse[0]) ? orderResponse[0][0] : orderResponse[0];
@@ -99,16 +110,22 @@ export class CloseOrderUseCase {
     this.logger.debug(`Body: ${JSON.stringify(requestBody)}`);
 
     // Realizar petición autenticada a la API de Wispro
-    const apiResponse: WisproChangeTicketStateApiResponse =
-      await this.wisproApiClient.patch<WisproChangeTicketStateApiResponse>(
-        changeStateUrl,
-        requestBody,
-        {
-          csrfToken: jwtPayload.csrfToken,
-          sessionCookie: jwtPayload.sessionCookie,
-          customReferer: `https://cloud.wispro.co/help_desk/issues/${ticketableId}?locale=es`,
-        },
-      );
+    const wrappedResponse = await this.wisproApiClient.patch<WisproChangeTicketStateApiResponse>(
+      changeStateUrl,
+      requestBody,
+      {
+        csrfToken: jwtPayload.csrfToken,
+        sessionCookie: jwtPayload.sessionCookie,
+        customReferer: `https://cloud.wispro.co/help_desk/issues/${ticketableId}?locale=es`,
+        userId: jwtPayload.sub,
+      },
+    );
+
+    if (wrappedResponse.newJwt) {
+      this.tokenRefreshContext.setNewJwt(wrappedResponse.newJwt);
+    }
+
+    const apiResponse = wrappedResponse.data;
 
     this.logger.log(
       `Orden ${orderId} cerrada exitosamente. Nuevo estado del ticket: ${apiResponse.state}`,

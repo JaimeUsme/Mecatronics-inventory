@@ -112,8 +112,10 @@ export class MobileLoginUseCase {
     // Construir payload del JWT con información combinada
     const payload: any = {
       sub: user.id,
+      id: user.id,
       email: user.email,
       name: user.name,
+      position: user.position ?? null,
       type: 'mobile',
     };
 

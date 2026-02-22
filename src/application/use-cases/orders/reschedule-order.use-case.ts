@@ -1,11 +1,12 @@
 /**
  * Reschedule Order Use Case
- * 
+ *
  * Caso de uso que reprograma una orden en la API de Wispro.
  * Cambia el estado de la orden a "to_reschedule" y agrega un feedback.
  */
 import { Injectable, Logger } from '@nestjs/common';
-import { WisproApiClientService } from '@infrastructure/external';
+import { WisproApiWrapperService } from '@infrastructure/external';
+import { TokenRefreshContextService } from '@application/services/token-refresh-context.service';
 import { JwtPayload } from '@infrastructure/auth/jwt';
 
 /**
@@ -26,7 +27,10 @@ export class RescheduleOrderUseCase {
   private readonly STATE = 'to_reschedule';
   private readonly LOCALE = 'es';
 
-  constructor(private readonly wisproApiClient: WisproApiClientService) {}
+  constructor(
+    private readonly wisproApiClient: WisproApiWrapperService,
+    private readonly tokenRefreshContext: TokenRefreshContextService,
+  ) {}
 
   /**
    * Ejecuta el caso de uso para reprogramar una orden
@@ -71,16 +75,23 @@ export class RescheduleOrderUseCase {
 
     // Realizar petición autenticada a la API de Wispro
     // Usar PUT (no POST) y JSON según lo que espera Wispro
-    const apiResponse: WisproChangeStateApiResponse =
-      await this.wisproApiClient.put<WisproChangeStateApiResponse>(
-        changeStateUrl,
-        requestBody,
-        {
-          csrfToken: jwtPayload.csrfToken,
-          sessionCookie: jwtPayload.sessionCookie,
-          customReferer: 'https://cloud.wispro.co/order/orders?locale=es',
-        },
-      );
+    const response = await this.wisproApiClient.put<WisproChangeStateApiResponse>(
+      changeStateUrl,
+      requestBody,
+      {
+        csrfToken: jwtPayload.csrfToken,
+        sessionCookie: jwtPayload.sessionCookie,
+        customReferer: 'https://cloud.wispro.co/order/orders?locale=es',
+        userId: jwtPayload.sub,
+      },
+    );
+
+    // Handle token refresh if needed
+    if (response.newJwt) {
+      this.tokenRefreshContext.setNewJwt(response.newJwt);
+    }
+
+    const apiResponse = response.data;
 
     this.logger.log(
       `Orden ${orderId} reprogramada exitosamente. Nuevo estado: ${apiResponse.state}`,

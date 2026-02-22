@@ -19,6 +19,22 @@ export class UpdateInternalUserRequestDto {
   email?: string;
 
   /**
+   * Job position or role within the organization (optional).
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  position?: string;
+
+  /**
+   * Identity document number (optional).
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  documentNumber?: string;
+
+  /**
    * Nueva contraseña (opcional).
    * Si se proporciona, se hasheará antes de guardarse.
    */

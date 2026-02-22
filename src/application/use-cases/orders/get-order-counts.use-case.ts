@@ -1,6 +1,6 @@
 /**
  * Get Order Counts Use Case
- * 
+ *
  * Caso de uso que obtiene los conteos de órdenes por categoría desde la API de Wispro.
  * Realiza múltiples peticiones para obtener los totales de:
  * - Órdenes fallidas
@@ -9,7 +9,8 @@
  * - Órdenes sin programar
  */
 import { Injectable, Logger } from '@nestjs/common';
-import { WisproApiClientService } from '@infrastructure/external';
+import { WisproApiWrapperService } from '@infrastructure/external';
+import { TokenRefreshContextService } from '@application/services/token-refresh-context.service';
 import { JwtPayload } from '@infrastructure/auth/jwt';
 import { OrderCountsResponseDto } from '@presentation/dto';
 
@@ -30,7 +31,10 @@ type WisproOrderCountsResponse =
 export class GetOrderCountsUseCase {
   private readonly logger = new Logger(GetOrderCountsUseCase.name);
 
-  constructor(private readonly wisproApiClient: WisproApiClientService) {}
+  constructor(
+    private readonly wisproApiClient: WisproApiWrapperService,
+    private readonly tokenRefreshContext: TokenRefreshContextService,
+  ) {}
 
   /**
    * Ejecuta el caso de uso para obtener los conteos de órdenes
@@ -111,12 +115,18 @@ export class GetOrderCountsUseCase {
       this.logger.debug(`URL (no se pudo decodificar): ${url}`);
     }
 
-    const response: WisproOrderCountsResponse =
-      await this.wisproApiClient.get<WisproOrderCountsResponse>(url, {
-        csrfToken: jwtPayload.csrfToken,
-        sessionCookie: jwtPayload.sessionCookie,
-        customReferer: 'https://cloud.wispro.co/order/orders?locale=es',
-      });
+    const wrappedResponse = await this.wisproApiClient.get<WisproOrderCountsResponse>(url, {
+      csrfToken: jwtPayload.csrfToken,
+      sessionCookie: jwtPayload.sessionCookie,
+      customReferer: 'https://cloud.wispro.co/order/orders?locale=es',
+      userId: jwtPayload.sub,
+    });
+
+    if (wrappedResponse.newJwt) {
+      this.tokenRefreshContext.setNewJwt(wrappedResponse.newJwt);
+    }
+
+    const response = wrappedResponse.data;
 
     this.logger.debug(`Respuesta RAW de Wispro /counts (tipo: ${typeof response}): ${JSON.stringify(response, null, 2)}`);
     this.logger.debug(`Es array: ${Array.isArray(response)}`);
@@ -233,12 +243,18 @@ export class GetOrderCountsUseCase {
       this.logger.debug(`URL (no se pudo decodificar): ${url}`);
     }
 
-    const response: WisproOrderCountsResponse =
-      await this.wisproApiClient.get<WisproOrderCountsResponse>(url, {
-        csrfToken: jwtPayload.csrfToken,
-        sessionCookie: jwtPayload.sessionCookie,
-        customReferer: 'https://cloud.wispro.co/order/orders?locale=es',
-      });
+    const wrappedResponse = await this.wisproApiClient.get<WisproOrderCountsResponse>(url, {
+      csrfToken: jwtPayload.csrfToken,
+      sessionCookie: jwtPayload.sessionCookie,
+      customReferer: 'https://cloud.wispro.co/order/orders?locale=es',
+      userId: jwtPayload.sub,
+    });
+
+    if (wrappedResponse.newJwt) {
+      this.tokenRefreshContext.setNewJwt(wrappedResponse.newJwt);
+    }
+
+    const response = wrappedResponse.data;
 
     this.logger.debug(`Respuesta RAW de Wispro /counts (tipo: ${typeof response}): ${JSON.stringify(response, null, 2)}`);
     this.logger.debug(`Es array: ${Array.isArray(response)}`);
@@ -364,12 +380,18 @@ export class GetOrderCountsUseCase {
         `Obteniendo conteo de órdenes ${categoryName}: ${url}`,
       );
 
-      const response: WisproOrderCountsResponse =
-        await this.wisproApiClient.get<WisproOrderCountsResponse>(url, {
-          csrfToken: jwtPayload.csrfToken,
-          sessionCookie: jwtPayload.sessionCookie,
-          customReferer: 'https://cloud.wispro.co/order/orders?locale=es',
-        });
+      const wrappedResponse = await this.wisproApiClient.get<WisproOrderCountsResponse>(url, {
+        csrfToken: jwtPayload.csrfToken,
+        sessionCookie: jwtPayload.sessionCookie,
+        customReferer: 'https://cloud.wispro.co/order/orders?locale=es',
+        userId: jwtPayload.sub,
+      });
+
+      if (wrappedResponse.newJwt) {
+        this.tokenRefreshContext.setNewJwt(wrappedResponse.newJwt);
+      }
+
+      const response = wrappedResponse.data;
 
       // Extraer el total de la respuesta (misma estructura que get-orders.use-case.ts)
       let total = 0;

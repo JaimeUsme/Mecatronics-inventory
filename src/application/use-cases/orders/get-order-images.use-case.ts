@@ -1,11 +1,12 @@
 /**
  * Get Order Images Use Case
- * 
+ *
  * Caso de uso que obtiene las imágenes de una orden desde la API de Wispro.
  * Utiliza el cliente HTTP de Wispro para hacer la petición autenticada.
  */
 import { Injectable, Logger } from '@nestjs/common';
-import { WisproApiClientService } from '@infrastructure/external';
+import { WisproApiWrapperService } from '@infrastructure/external';
+import { TokenRefreshContextService } from '@application/services/token-refresh-context.service';
 import { JwtPayload } from '@infrastructure/auth/jwt';
 import { OrderImageDto, GetOrderImagesResponseDto } from '@presentation/dto';
 
@@ -26,7 +27,10 @@ type WisproOrderImagesApiResponse = Array<{
 export class GetOrderImagesUseCase {
   private readonly logger = new Logger(GetOrderImagesUseCase.name);
 
-  constructor(private readonly wisproApiClient: WisproApiClientService) {}
+  constructor(
+    private readonly wisproApiClient: WisproApiWrapperService,
+    private readonly tokenRefreshContext: TokenRefreshContextService,
+  ) {}
 
   /**
    * Ejecuta el caso de uso para obtener las imágenes de una orden
@@ -45,15 +49,21 @@ export class GetOrderImagesUseCase {
     const imagesUrl = `/order/orders/${orderId}/images`;
 
     // Realizar petición autenticada a la API de Wispro
-    const apiResponse: WisproOrderImagesApiResponse =
-      await this.wisproApiClient.get<WisproOrderImagesApiResponse>(
-        imagesUrl,
-        {
-          csrfToken: jwtPayload.csrfToken,
-          sessionCookie: jwtPayload.sessionCookie,
-          customReferer: 'https://cloud.wispro.co/order/orders?locale=es',
-        },
-      );
+    const wrappedResponse = await this.wisproApiClient.get<WisproOrderImagesApiResponse>(
+      imagesUrl,
+      {
+        csrfToken: jwtPayload.csrfToken,
+        sessionCookie: jwtPayload.sessionCookie,
+        customReferer: 'https://cloud.wispro.co/order/orders?locale=es',
+        userId: jwtPayload.sub,
+      },
+    );
+
+    if (wrappedResponse.newJwt) {
+      this.tokenRefreshContext.setNewJwt(wrappedResponse.newJwt);
+    }
+
+    const apiResponse = wrappedResponse.data;
 
     // Mapear respuesta de la API a nuestro DTO
     const allImages: OrderImageDto[] = (Array.isArray(apiResponse) ? apiResponse : []).map(

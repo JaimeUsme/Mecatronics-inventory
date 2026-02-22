@@ -16,6 +16,7 @@ import {
   MobileModule,
 } from './application/modules';
 import { DatabaseModule } from './infrastructure/persistence/database.module';
+import { SharedModule } from './application/modules/shared/shared.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { DatabaseModule } from './infrastructure/persistence/database.module';
       envFilePath: '.env', // Ruta al archivo .env
     }),
     DatabaseModule, // Módulo de base de datos (TypeORM) - debe ir después de ConfigModule
+    SharedModule, // Módulo compartido con servicios globales e interceptores
     InternalAuthModule,
     AuthenticationModule,
     EmployeesModule,

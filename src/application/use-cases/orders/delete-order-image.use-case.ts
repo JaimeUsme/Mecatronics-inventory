@@ -1,11 +1,12 @@
 /**
  * Delete Order Image Use Case
- * 
+ *
  * Caso de uso que elimina una imagen de una orden en la API de Wispro.
  * Utiliza el cliente HTTP de Wispro para hacer la petición autenticada.
  */
 import { Injectable, Logger } from '@nestjs/common';
-import { WisproApiClientService } from '@infrastructure/external';
+import { WisproApiWrapperService } from '@infrastructure/external';
+import { TokenRefreshContextService } from '@application/services/token-refresh-context.service';
 import { JwtPayload } from '@infrastructure/auth/jwt';
 import { GetOrderImagesResponseDto } from '@presentation/dto';
 import { GetOrderImagesUseCase } from './get-order-images.use-case';
@@ -15,7 +16,8 @@ export class DeleteOrderImageUseCase {
   private readonly logger = new Logger(DeleteOrderImageUseCase.name);
 
   constructor(
-    private readonly wisproApiClient: WisproApiClientService,
+    private readonly wisproApiClient: WisproApiWrapperService,
+    private readonly tokenRefreshContext: TokenRefreshContextService,
     private readonly getOrderImagesUseCase: GetOrderImagesUseCase,
   ) {}
 
@@ -40,14 +42,19 @@ export class DeleteOrderImageUseCase {
     const imageUrl = `/order/orders/${orderId}/images/${imageId}`;
 
     // Realizar petición DELETE autenticada a la API de Wispro
-    await this.wisproApiClient.delete(
+    const wrappedResponse = await this.wisproApiClient.delete(
       imageUrl,
       {
         csrfToken: jwtPayload.csrfToken,
         sessionCookie: jwtPayload.sessionCookie,
         customReferer: 'https://cloud.wispro.co/order/orders?locale=es',
+        userId: jwtPayload.sub,
       },
     );
+
+    if (wrappedResponse.newJwt) {
+      this.tokenRefreshContext.setNewJwt(wrappedResponse.newJwt);
+    }
 
     this.logger.log(
       `Imagen ${imageId} eliminada exitosamente de la orden ${orderId}`,

@@ -1,30 +1,36 @@
 /**
  * Wispro API Client Service
- * 
+ *
  * Servicio que actúa como cliente HTTP para interactuar con la API de Wispro.
  * Maneja las peticiones autenticadas usando cookies y CSRF tokens.
- * 
+ * Soporta refresh automático de tokens cuando se recibe un 401 (token expirado).
+ *
  * Este servicio pertenece a la capa de infraestructura y actúa como un adaptador
  * para comunicarse con servicios externos.
  */
 import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import axios, { AxiosInstance } from 'axios';
+import { WisproSessionManagerService } from './wispro-session-manager.service';
 
 interface WisproApiRequestOptions {
   csrfToken?: string;
   sessionCookie?: string;
   queryParams?: Record<string, any>;
   customReferer?: string;
+  userId?: string; // User ID for token refresh on 401
 }
 
 interface WisproApiResponse<T = any> {
   data: T;
+  newJwt?: string; // New JWT if token was refreshed
 }
 
 @Injectable()
 export class WisproApiClientService {
   private readonly logger = new Logger(WisproApiClientService.name);
   private readonly baseUrl = 'https://cloud.wispro.co';
+
+  constructor(private sessionManager?: WisproSessionManagerService) {}
 
   /**
    * Realiza una petición GET autenticada a la API de Wispro
@@ -97,6 +103,25 @@ export class WisproApiClientService {
       });
 
       if (!response.ok) {
+        // Handle 401 Unauthorized - attempt token refresh and retry
+        if (response.status === 401 && options?.userId) {
+          const newCredentials = await this.handleUnauthorizedAndGetNewCredentials(
+            endpoint,
+            options,
+          );
+
+          if (newCredentials) {
+            // Retry with new credentials
+            return this.retryRequestWithNewCredentials<T>(
+              'get',
+              endpoint,
+              newCredentials,
+              undefined,
+              options,
+            );
+          }
+        }
+
         const errorText = await response.text();
         this.logger.error(`API request failed: ${response.status} ${response.statusText}`);
         this.logger.error(`URL: ${url}`);
@@ -171,6 +196,25 @@ export class WisproApiClientService {
       });
 
       if (!response.ok) {
+        // Handle 401 Unauthorized - attempt token refresh and retry
+        if (response.status === 401 && options?.userId) {
+          const newCredentials = await this.handleUnauthorizedAndGetNewCredentials(
+            endpoint,
+            options,
+          );
+
+          if (newCredentials) {
+            // Retry with new credentials
+            return this.retryRequestWithNewCredentials<T>(
+              'put',
+              endpoint,
+              newCredentials,
+              body,
+              options,
+            );
+          }
+        }
+
         const errorText = await response.text();
         this.logger.error(
           `API request failed: ${response.status} ${response.statusText}`,
@@ -264,6 +308,26 @@ export class WisproApiClientService {
       });
 
       if (!response.ok) {
+        // Handle 401 Unauthorized - attempt token refresh and retry
+        if (response.status === 401 && options?.userId) {
+          const newCredentials = await this.handleUnauthorizedAndGetNewCredentials(
+            endpoint,
+            options,
+          );
+
+          if (newCredentials) {
+            // Retry with new credentials
+            return this.retryRequestWithNewCredentials<T>(
+              'post',
+              endpoint,
+              newCredentials,
+              body,
+              options,
+              useFormData,
+            );
+          }
+        }
+
         const errorText = await response.text();
         this.logger.error(
           `API request failed: ${response.status} ${response.statusText}`,
@@ -409,6 +473,25 @@ export class WisproApiClientService {
       });
 
       if (!response.ok) {
+        // Handle 401 Unauthorized - attempt token refresh and retry
+        if (response.status === 401 && options?.userId) {
+          const newCredentials = await this.handleUnauthorizedAndGetNewCredentials(
+            endpoint,
+            options,
+          );
+
+          if (newCredentials) {
+            // Retry with new credentials
+            return this.retryRequestWithNewCredentials<T>(
+              'patch',
+              endpoint,
+              newCredentials,
+              body,
+              options,
+            );
+          }
+        }
+
         const errorText = await response.text();
         this.logger.error(
           `API request failed: ${response.status} ${response.statusText}`,
@@ -479,6 +562,25 @@ export class WisproApiClientService {
       });
 
       if (!response.ok) {
+        // Handle 401 Unauthorized - attempt token refresh and retry
+        if (response.status === 401 && options?.userId) {
+          const newCredentials = await this.handleUnauthorizedAndGetNewCredentials(
+            endpoint,
+            options,
+          );
+
+          if (newCredentials) {
+            // Retry with new credentials
+            return this.retryRequestWithNewCredentials<T>(
+              'delete',
+              endpoint,
+              newCredentials,
+              undefined,
+              options,
+            );
+          }
+        }
+
         const errorText = await response.text();
         this.logger.error(
           `API request failed: ${response.status} ${response.statusText}`,
@@ -579,6 +681,100 @@ export class WisproApiClientService {
 
     // Si no se proporcionan, lanzar error (las credenciales deben venir del JWT)
     return null;
+  }
+
+  /**
+   * Handles 401 Unauthorized responses and attempts to refresh the token.
+   * If successful, returns the new JWT. If not possible, throws error.
+   *
+   * @param endpoint - API endpoint that failed
+   * @param options - Request options containing userId if available
+   * @returns New JWT if refresh was successful
+   * @throws HttpException if token refresh is not possible or fails
+   */
+  private async handleUnauthorizedAndGetNewCredentials(
+    endpoint: string,
+    options?: WisproApiRequestOptions,
+  ): Promise<{ newCsrfToken: string; newSessionCookie: string; newJwt: string } | null> {
+    // If no session manager available, cannot refresh
+    if (!this.sessionManager) {
+      this.logger.warn(
+        `Token expired (401) for ${endpoint} but SessionManager not available - cannot refresh`,
+      );
+      return null;
+    }
+
+    // If no userId provided, cannot identify which user's token to refresh
+    if (!options?.userId) {
+      this.logger.warn(
+        `Token expired (401) for ${endpoint} but userId not provided - cannot refresh`,
+      );
+      return null;
+    }
+
+    try {
+      this.logger.log(
+        `Token expired (401) for ${endpoint} - attempting to refresh for user ${options.userId}`,
+      );
+
+      const result = await this.sessionManager.refreshWisproSession(
+        options.userId,
+      );
+
+      this.logger.log(`Token refresh successful for user ${options.userId}`);
+      return result;
+    } catch (error) {
+      this.logger.error(
+        `Failed to refresh token for user ${options.userId}: ${error?.message}`,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Retries a request with new credentials after a 401 response
+   * @param method - HTTP method (get, post, put, etc.)
+   * @param endpoint - API endpoint
+   * @param credentials - New credentials to use
+   * @param body - Request body (for POST/PUT/PATCH)
+   * @param options - Request options
+   * @param useFormData - Whether to use form data (for POST)
+   * @returns Response data
+   */
+  private async retryRequestWithNewCredentials<T = any>(
+    method: string,
+    endpoint: string,
+    credentials: { newCsrfToken: string; newSessionCookie: string },
+    body?: any,
+    options?: WisproApiRequestOptions,
+    useFormData: boolean = false,
+  ): Promise<T> {
+    // Update options with new credentials
+    const updatedOptions: WisproApiRequestOptions = {
+      ...options,
+      csrfToken: credentials.newCsrfToken,
+      sessionCookie: credentials.newSessionCookie,
+    };
+
+    this.logger.debug(
+      `Retrying ${method.toUpperCase()} request to ${endpoint} with refreshed credentials`,
+    );
+
+    // Retry the request with new credentials
+    switch (method.toLowerCase()) {
+      case 'get':
+        return this.get<T>(endpoint, updatedOptions);
+      case 'post':
+        return this.post<T>(endpoint, body, updatedOptions, useFormData);
+      case 'put':
+        return this.put<T>(endpoint, body, updatedOptions);
+      case 'patch':
+        return this.patch<T>(endpoint, body, updatedOptions);
+      case 'delete':
+        return this.delete<T>(endpoint, updatedOptions);
+      default:
+        throw new Error(`Unsupported HTTP method: ${method}`);
+    }
   }
 }
 

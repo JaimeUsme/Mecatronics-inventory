@@ -1,6 +1,6 @@
 /**
  * Get Material Expenses Use Case
- * 
+ *
  * Caso de uso que obtiene solo los gastos de material de una orden desde la API de Wispro.
  * Filtra y devuelve únicamente los feedbacks que son de tipo material.
  * Parsea el body JSON de cada feedback para extraer los materiales con sus IDs.
@@ -8,7 +8,8 @@
  * Utiliza el cliente HTTP de Wispro para hacer la petición autenticada.
  */
 import { Injectable, Logger } from '@nestjs/common';
-import { WisproApiClientService } from '@infrastructure/external';
+import { WisproApiWrapperService } from '@infrastructure/external';
+import { TokenRefreshContextService } from '@application/services/token-refresh-context.service';
 import { JwtPayload } from '@infrastructure/auth/jwt';
 import { MaterialExpenseDto } from '@presentation/dto';
 import { GetMaterialExpensesResponseDto } from '@presentation/dto/responses/get-material-expenses-response.dto';
@@ -45,7 +46,8 @@ export class GetMaterialExpensesUseCase {
   private readonly MATERIAL_FEEDBACK_KIND_ID = 'bd40d1ad-5b89-42a4-a70f-2ec8b2392e16';
 
   constructor(
-    private readonly wisproApiClient: WisproApiClientService,
+    private readonly wisproApiClient: WisproApiWrapperService,
+    private readonly tokenRefreshContext: TokenRefreshContextService,
   ) {}
 
   /**
@@ -140,15 +142,21 @@ export class GetMaterialExpensesUseCase {
     const feedbacksUrl = `/order/orders/${orderId}/feedbacks`;
 
     // Realizar petición autenticada a la API de Wispro
-    const apiResponse: WisproOrderFeedbacksApiResponse =
-      await this.wisproApiClient.get<WisproOrderFeedbacksApiResponse>(
-        feedbacksUrl,
-        {
-          csrfToken: jwtPayload.csrfToken,
-          sessionCookie: jwtPayload.sessionCookie,
-          customReferer: 'https://cloud.wispro.co/order/orders?locale=es',
-        },
-      );
+    const wrappedResponse = await this.wisproApiClient.get<WisproOrderFeedbacksApiResponse>(
+      feedbacksUrl,
+      {
+        csrfToken: jwtPayload.csrfToken,
+        sessionCookie: jwtPayload.sessionCookie,
+        customReferer: 'https://cloud.wispro.co/order/orders?locale=es',
+        userId: jwtPayload.sub,
+      },
+    );
+
+    if (wrappedResponse.newJwt) {
+      this.tokenRefreshContext.setNewJwt(wrappedResponse.newJwt);
+    }
+
+    const apiResponse = wrappedResponse.data;
 
     // Filtrar solo los feedbacks de material
     const materialFeedbacks = Array.isArray(apiResponse)

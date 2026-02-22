@@ -10,7 +10,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: ['log', 'error', 'warn', 'debug', 'verbose'], // Habilitar todos los niveles de log
   });
-  
+
   // Habilitar ValidationPipe globalmente para transformar query params
   app.useGlobalPipes(
     new ValidationPipe({
@@ -20,7 +20,7 @@ async function bootstrap() {
       },
     }),
   );
-  
+
   const corsOriginRaw = process.env.CORS_ORIGIN;
   const corsOrigin =
     !corsOriginRaw || corsOriginRaw === '*'
@@ -41,7 +41,7 @@ async function bootstrap() {
       'Origin',
       'X-Requested-With',
     ],
-    exposedHeaders: ['Authorization'],
+    exposedHeaders: ['Authorization', 'X-New-Auth-Token'],
     credentials: true, // Permite enviar cookies y headers de autenticación
   });
   

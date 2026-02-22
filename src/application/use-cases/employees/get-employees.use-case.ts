@@ -1,14 +1,15 @@
 /**
  * Get Employees Use Case
- * 
+ *
  * Caso de uso que obtiene la lista de empleados desde la API de Wispro.
  * Utiliza el cliente HTTP de Wispro para hacer la petición autenticada.
  */
 import { Injectable, Logger } from '@nestjs/common';
-import { WisproApiClientService } from '@infrastructure/external';
+import { WisproApiWrapperService } from '@infrastructure/external';
 import { JwtPayload } from '@infrastructure/auth/jwt';
 import { GetEmployeesRequestDto, GetEmployeesResponseDto } from '@presentation/dto';
 import { mapWisproEmployeesToDto } from '@application/mappers';
+import { TokenRefreshContextService } from '@application/services/token-refresh-context.service';
 
 /**
  * Interfaz para la respuesta cruda de la API de Wispro
@@ -30,7 +31,10 @@ type WisproEmployeesApiResponse =
 export class GetEmployeesUseCase {
   private readonly logger = new Logger(GetEmployeesUseCase.name);
 
-  constructor(private readonly wisproApiClient: WisproApiClientService) {}
+  constructor(
+    private readonly wisproApiClient: WisproApiWrapperService,
+    private readonly tokenRefreshContext: TokenRefreshContextService,
+  ) {}
 
   /**
    * Ejecuta el caso de uso para obtener la lista de empleados
@@ -71,11 +75,12 @@ export class GetEmployeesUseCase {
       const maxPages = 100; // Límite de seguridad para evitar bucles infinitos
 
       while (hasMorePages && currentPage <= maxPages) {
-        const apiResponse = await this.wisproApiClient.get<WisproEmployeesApiResponse>(
+        const response = await this.wisproApiClient.get<WisproEmployeesApiResponse>(
           '/employees',
           {
             csrfToken: jwtPayload.csrfToken,
             sessionCookie: jwtPayload.sessionCookie,
+            userId: jwtPayload.sub, // Pasar userId para permitir token refresh automático
             queryParams: {
               per_page: 100, // Obtener más por página para reducir peticiones
               page: currentPage,
@@ -85,6 +90,12 @@ export class GetEmployeesUseCase {
           },
         );
 
+        // Capturar newJwt si ocurrió un refresco de token
+        if (response.newJwt) {
+          this.tokenRefreshContext.setNewJwt(response.newJwt);
+        }
+
+        const apiResponse = response.data;
         let employeesArray: any[] = [];
         let paginationInfo: any = null;
 
@@ -148,22 +159,31 @@ export class GetEmployeesUseCase {
         queryParams.append('react', String(react));
         // Agregar el parámetro de búsqueda con corchetes manualmente
         const searchUrl = `/employees?${queryParams.toString()}&q[name_or_user_email_or_phone_or_phone_mobile_unaccent_cont]=${searchTerm}`;
-        
-        apiResponse = await this.wisproApiClient.get<WisproEmployeesApiResponse>(
+
+        const searchResponse = await this.wisproApiClient.get<WisproEmployeesApiResponse>(
           searchUrl,
           {
             csrfToken: jwtPayload.csrfToken,
             sessionCookie: jwtPayload.sessionCookie,
+            userId: jwtPayload.sub, // Pasar userId para permitir token refresh automático
             customReferer: 'https://cloud.wispro.co/employees?locale=es',
           },
         );
+
+        // Capturar newJwt si ocurrió un refresco de token
+        if (searchResponse.newJwt) {
+          this.tokenRefreshContext.setNewJwt(searchResponse.newJwt);
+        }
+
+        apiResponse = searchResponse.data;
       } else {
         // Usar endpoint normal de empleados sin búsqueda
-        apiResponse = await this.wisproApiClient.get<WisproEmployeesApiResponse>(
+        const normalResponse = await this.wisproApiClient.get<WisproEmployeesApiResponse>(
           '/employees',
           {
             csrfToken: jwtPayload.csrfToken,
             sessionCookie: jwtPayload.sessionCookie,
+            userId: jwtPayload.sub, // Pasar userId para permitir token refresh automático
             queryParams: {
               per_page: perPage,
               page: page,
@@ -172,6 +192,13 @@ export class GetEmployeesUseCase {
             customReferer: 'https://cloud.wispro.co/employees?locale=es',
           },
         );
+
+        // Capturar newJwt si ocurrió un refresco de token
+        if (normalResponse.newJwt) {
+          this.tokenRefreshContext.setNewJwt(normalResponse.newJwt);
+        }
+
+        apiResponse = normalResponse.data;
       }
 
       // Extraer el array de empleados de la respuesta

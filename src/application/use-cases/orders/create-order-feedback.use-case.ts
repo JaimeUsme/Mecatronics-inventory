@@ -1,11 +1,12 @@
 /**
  * Create Order Feedback Use Case
- * 
+ *
  * Caso de uso que crea un feedback en una orden en la API de Wispro.
  * Utiliza el cliente HTTP de Wispro para hacer la petición autenticada.
  */
 import { Injectable, Logger } from '@nestjs/common';
-import { WisproApiClientService } from '@infrastructure/external';
+import { WisproApiWrapperService } from '@infrastructure/external';
+import { TokenRefreshContextService } from '@application/services/token-refresh-context.service';
 import { JwtPayload } from '@infrastructure/auth/jwt';
 import { CreateOrderFeedbackRequestDto, OrderFeedbackDto } from '@presentation/dto';
 import { GetOrderFeedbacksUseCase } from './get-order-feedbacks.use-case';
@@ -36,7 +37,8 @@ export class CreateOrderFeedbackUseCase {
   private readonly logger = new Logger(CreateOrderFeedbackUseCase.name);
 
   constructor(
-    private readonly wisproApiClient: WisproApiClientService,
+    private readonly wisproApiClient: WisproApiWrapperService,
+    private readonly tokenRefreshContext: TokenRefreshContextService,
     private readonly getOrderFeedbacksUseCase: GetOrderFeedbacksUseCase,
   ) {}
 
@@ -71,16 +73,22 @@ export class CreateOrderFeedbackUseCase {
     };
 
     // Realizar petición autenticada a la API de Wispro
-    const apiResponse: WisproCreateFeedbackApiResponse =
-      await this.wisproApiClient.post<WisproCreateFeedbackApiResponse>(
-        feedbacksUrl,
-        requestBody,
-        {
-          csrfToken: jwtPayload.csrfToken,
-          sessionCookie: jwtPayload.sessionCookie,
-          customReferer: 'https://cloud.wispro.co/order/orders?locale=es',
-        },
-      );
+    const wrappedResponse = await this.wisproApiClient.post<WisproCreateFeedbackApiResponse>(
+      feedbacksUrl,
+      requestBody,
+      {
+        csrfToken: jwtPayload.csrfToken,
+        sessionCookie: jwtPayload.sessionCookie,
+        customReferer: 'https://cloud.wispro.co/order/orders?locale=es',
+        userId: jwtPayload.sub,
+      },
+    );
+
+    if (wrappedResponse.newJwt) {
+      this.tokenRefreshContext.setNewJwt(wrappedResponse.newJwt);
+    }
+
+    const apiResponse = wrappedResponse.data;
 
     this.logger.log(
       `Feedback creado exitosamente: ${apiResponse.id} para la orden ${orderId}`,

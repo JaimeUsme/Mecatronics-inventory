@@ -1,6 +1,6 @@
 /**
  * Orders Module
- * 
+ *
  * Módulo que agrupa todos los componentes relacionados con órdenes:
  * - Casos de uso de órdenes
  * - Controladores de órdenes
@@ -24,9 +24,10 @@ import {
 import { OrdersController } from '@presentation/controllers';
 import { OrderCrewSnapshotModule } from '@application/services/orders/order-crew-snapshot.module';
 import { AuthenticationModule } from '../authentication/authentication.module';
+import { SharedModule } from '@application/modules/shared/shared.module';
 
 @Module({
-  imports: [WisproApiModule, OrderCrewSnapshotModule, AuthenticationModule],
+  imports: [WisproApiModule, OrderCrewSnapshotModule, AuthenticationModule, SharedModule],
   controllers: [OrdersController],
   providers: [
     GetOrdersUseCase,

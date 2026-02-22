@@ -13,6 +13,7 @@ import {
   UpdateInternalUserRequestDto,
   UpdateOwnProfileRequestDto,
   InternalUserDto,
+  ActiveUserBasicInfoDto,
   InternalLoginResponseDto,
   ReconnectWisproResponseDto,
   GetInternalUsersResponseDto,
@@ -48,12 +49,16 @@ export class InternalAuthController {
       dto.password,
       dto.wisproEmail,
       dto.wisproPassword,
+      dto.position,
+      dto.documentNumber,
     );
     return {
       id: user.id,
       name: user.name,
       email: user.email,
       active: user.active ?? true,
+      position: user.position,
+      documentNumber: user.documentNumber,
       wisproEmail: user.wisproEmail,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
@@ -76,6 +81,8 @@ export class InternalAuthController {
         name: user.name,
         email: user.email,
         active: user.active ?? true,
+        position: user.position,
+        documentNumber: user.documentNumber,
         wisproEmail: user.wisproEmail,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
@@ -246,10 +253,12 @@ export class InternalAuthController {
       name: user.name,
       email: user.email,
       active: user.active ?? true,
+      position: user.position,
+      documentNumber: user.documentNumber,
       wisproEmail: user.wisproEmail,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
-      isCurrentUser: currentUserId ? user.id === currentUserId : false, // Marcar si es el usuario actual
+      isCurrentUser: currentUserId ? user.id === currentUserId : false,
     }));
 
     const totalPages = Math.ceil(total / perPage) || 1;
@@ -324,6 +333,8 @@ export class InternalAuthController {
       name: dto.name,
       email: dto.email,
       password: dto.password,
+      position: dto.position,
+      documentNumber: dto.documentNumber,
     });
 
     return {
@@ -331,6 +342,8 @@ export class InternalAuthController {
       name: updated.name,
       email: updated.email,
       active: updated.active ?? true,
+      position: updated.position,
+      documentNumber: updated.documentNumber,
       wisproEmail: updated.wisproEmail,
       createdAt: updated.createdAt,
       updatedAt: updated.updatedAt,
@@ -368,10 +381,26 @@ export class InternalAuthController {
       name: updated.name,
       email: updated.email,
       active: updated.active ?? true,
+      position: updated.position,
+      documentNumber: updated.documentNumber,
       wisproEmail: updated.wisproEmail,
       createdAt: updated.createdAt,
       updatedAt: updated.updatedAt,
     };
+  }
+
+  /**
+   * Returns name, documentNumber and position of all active internal users.
+   *
+   * GET /internal-auth/users/active-info
+   *
+   * Requiere: Authorization: Bearer <token-interno>
+   */
+  @Get('users/active-info')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtPermissiveGuard)
+  async getActiveUsersBasicInfo(): Promise<ActiveUserBasicInfoDto[]> {
+    return this.internalAuthService.getActiveUsersBasicInfo();
   }
 }
 

@@ -1,15 +1,16 @@
 /**
  * Get Orders Use Case
- * 
+ *
  * Caso de uso que obtiene la lista de órdenes desde la API de Wispro.
  * Utiliza el cliente HTTP de Wispro para hacer la petición autenticada.
  */
 import { Injectable, Logger } from '@nestjs/common';
-import { WisproApiClientService } from '@infrastructure/external';
+import { WisproApiWrapperService } from '@infrastructure/external';
 import { JwtPayload } from '@infrastructure/auth/jwt';
 import { GetOrdersRequestDto, GetOrdersResponseDto } from '@presentation/dto';
 import { mapWisproOrdersToDto } from '@application/mappers';
 import { OrderCrewSnapshotService } from '@application/services/orders/order-crew-snapshot.service';
+import { TokenRefreshContextService } from '@application/services/token-refresh-context.service';
 
 /**
  * Interfaz para la respuesta cruda de la API de Wispro
@@ -31,8 +32,9 @@ export class GetOrdersUseCase {
   private readonly logger = new Logger(GetOrdersUseCase.name);
 
   constructor(
-    private readonly wisproApiClient: WisproApiClientService,
+    private readonly wisproApiClient: WisproApiWrapperService,
     private readonly orderCrewSnapshotService: OrderCrewSnapshotService,
+    private readonly tokenRefreshContext: TokenRefreshContextService,
   ) {}
 
   /**
@@ -142,15 +144,22 @@ export class GetOrdersUseCase {
     }
 
     // Realizar petición autenticada a la API de Wispro
-    const apiResponse: WisproOrdersApiResponse =
-      await this.wisproApiClient.get<WisproOrdersApiResponse>(
-        ordersUrl,
-        {
-          csrfToken: jwtPayload.csrfToken,
-          sessionCookie: jwtPayload.sessionCookie,
-          customReferer: 'https://cloud.wispro.co/order/orders?locale=es',
-        },
-      );
+    const wrappedResponse = await this.wisproApiClient.get<WisproOrdersApiResponse>(
+      ordersUrl,
+      {
+        csrfToken: jwtPayload.csrfToken,
+        sessionCookie: jwtPayload.sessionCookie,
+        userId: jwtPayload.sub, // Pasar userId para permitir token refresh automático
+        customReferer: 'https://cloud.wispro.co/order/orders?locale=es',
+      },
+    );
+
+    // Capturar newJwt si ocurrió un refresco de token
+    if (wrappedResponse.newJwt) {
+      this.tokenRefreshContext.setNewJwt(wrappedResponse.newJwt);
+    }
+
+    const apiResponse = wrappedResponse.data;
 
     // Extraer el array de órdenes de la respuesta
     // Según la estructura real de Wispro: [[órdenes], {pagination: {total: X, total_count: Y, more: Z}}]

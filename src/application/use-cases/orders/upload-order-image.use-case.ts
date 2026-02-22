@@ -1,11 +1,12 @@
 /**
  * Upload Order Image Use Case
- * 
+ *
  * Caso de uso que sube una imagen a una orden en la API de Wispro.
  * Utiliza el cliente HTTP de Wispro para hacer la petición autenticada con multipart/form-data.
  */
 import { Injectable, Logger } from '@nestjs/common';
-import { WisproApiClientService } from '@infrastructure/external';
+import { WisproApiWrapperService } from '@infrastructure/external';
+import { TokenRefreshContextService } from '@application/services/token-refresh-context.service';
 import { JwtPayload } from '@infrastructure/auth/jwt';
 import { GetOrderImagesResponseDto } from '@presentation/dto';
 import { GetOrderImagesUseCase } from './get-order-images.use-case';
@@ -28,7 +29,8 @@ export class UploadOrderImageUseCase {
   private readonly logger = new Logger(UploadOrderImageUseCase.name);
 
   constructor(
-    private readonly wisproApiClient: WisproApiClientService,
+    private readonly wisproApiClient: WisproApiWrapperService,
+    private readonly tokenRefreshContext: TokenRefreshContextService,
     private readonly getOrderImagesUseCase: GetOrderImagesUseCase,
   ) {}
 
@@ -53,15 +55,20 @@ export class UploadOrderImageUseCase {
     const imagesUrl = `/order/orders/${orderId}/images`;
 
     // Realizar petición autenticada a la API de Wispro con multipart/form-data
-    await this.wisproApiClient.postMultipart<WisproOrderImagesApiResponse>(
+    const wrappedResponse = await this.wisproApiClient.postMultipart<WisproOrderImagesApiResponse>(
       imagesUrl,
       file,
       {
         csrfToken: jwtPayload.csrfToken,
         sessionCookie: jwtPayload.sessionCookie,
         customReferer: 'https://cloud.wispro.co/order/orders?locale=es',
+        userId: jwtPayload.sub,
       },
     );
+
+    if (wrappedResponse.newJwt) {
+      this.tokenRefreshContext.setNewJwt(wrappedResponse.newJwt);
+    }
 
     this.logger.log(
       `Imagen subida exitosamente para la orden ${orderId}`,

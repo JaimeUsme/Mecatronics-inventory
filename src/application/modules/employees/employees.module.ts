@@ -1,6 +1,6 @@
 /**
  * Employees Module
- * 
+ *
  * Módulo que agrupa todos los componentes relacionados con empleados:
  * - Casos de uso de empleados
  * - Controladores de empleados
@@ -10,9 +10,10 @@ import { Module } from '@nestjs/common';
 import { WisproApiModule } from '@infrastructure/external';
 import { GetEmployeesUseCase } from '@application/use-cases';
 import { EmployeesController } from '@presentation/controllers';
+import { SharedModule } from '@application/modules/shared/shared.module';
 
 @Module({
-  imports: [WisproApiModule],
+  imports: [WisproApiModule, SharedModule],
   controllers: [EmployeesController],
   providers: [GetEmployeesUseCase],
   exports: [GetEmployeesUseCase],

@@ -1,6 +1,6 @@
 /**
  * Get Profile Use Case
- * 
+ *
  * Caso de uso que obtiene la información del perfil del usuario autenticado
  * y el estado de conexión con Wispro.
  */
@@ -11,9 +11,10 @@ import { JwtPayload } from '@infrastructure/auth/jwt';
 import { ProfileResponseDto, WisproConnectionStatusDto } from '@presentation/dto';
 import { InternalUser } from '@infrastructure/persistence/entities';
 import {
-  WisproApiClientService,
+  WisproApiWrapperService,
   WisproCurrentUserResponse,
 } from '@infrastructure/external';
+import { TokenRefreshContextService } from '@application/services/token-refresh-context.service';
 
 @Injectable()
 export class GetProfileUseCase {
@@ -22,7 +23,8 @@ export class GetProfileUseCase {
   constructor(
     @InjectRepository(InternalUser)
     private readonly internalUserRepository: Repository<InternalUser>,
-    private readonly wisproApiClient: WisproApiClientService,
+    private readonly wisproApiClient: WisproApiWrapperService,
+    private readonly tokenRefreshContext: TokenRefreshContextService,
   ) {}
 
   /**
@@ -61,22 +63,30 @@ export class GetProfileUseCase {
       // Si tiene credenciales válidas de Wispro, obtener información completa de Wispro API
       if (csrfToken && sessionCookie && wisproStatus.isConnected) {
         try {
-          const apiResponse: WisproCurrentUserResponse =
+          const apiResponse =
             await this.wisproApiClient.get<WisproCurrentUserResponse>(
               '/users/current',
               {
                 csrfToken,
                 sessionCookie,
+                userId: jwtPayload.sub, // Pasar userId para permitir token refresh automático
               },
             );
+
+          // Capturar newJwt si ocurrió un refresco de token
+          if (apiResponse.newJwt) {
+            this.tokenRefreshContext.setNewJwt(apiResponse.newJwt);
+          }
+
+          const userData = apiResponse.data;
 
           return {
             id: internalUser.id,
             name: internalUser.name,
             email: internalUser.email,
             userType: 'internal',
-            phone_mobile: apiResponse.user.userable.phone_mobile,
-            userable_id: apiResponse.user.userable.id,
+            phone_mobile: userData.user.userable.phone_mobile,
+            userable_id: userData.user.userable.id,
             wispro: wisproStatus,
           };
         } catch (error) {
@@ -111,22 +121,30 @@ export class GetProfileUseCase {
     if (csrfToken && sessionCookie) {
       try {
         // Obtener información del usuario desde Wispro API
-        const apiResponse: WisproCurrentUserResponse =
+        const apiResponse =
           await this.wisproApiClient.get<WisproCurrentUserResponse>(
             '/users/current',
             {
               csrfToken,
               sessionCookie,
+              userId: jwtPayload.sub, // Pasar userId para permitir token refresh automático
             },
           );
 
+        // Capturar newJwt si ocurrió un refresco de token
+        if (apiResponse.newJwt) {
+          this.tokenRefreshContext.setNewJwt(apiResponse.newJwt);
+        }
+
+        const userData = apiResponse.data;
+
         return {
-          id: apiResponse.user.id,
-          name: apiResponse.user.userable.name,
-          email: apiResponse.user.email,
+          id: userData.user.id,
+          name: userData.user.userable.name,
+          email: userData.user.email,
           userType: 'wispro',
-          phone_mobile: apiResponse.user.userable.phone_mobile,
-          userable_id: apiResponse.user.userable.id,
+          phone_mobile: userData.user.userable.phone_mobile,
+          userable_id: userData.user.userable.id,
           wispro: wisproStatus,
         };
       } catch (error) {

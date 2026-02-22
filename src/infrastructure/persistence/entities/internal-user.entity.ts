@@ -50,6 +50,18 @@ export class InternalUser {
   wisproPasswordEncrypted?: string | null;
 
   /**
+   * Job position or role within the organization (optional).
+   */
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  position?: string | null;
+
+  /**
+   * Identity document number (optional).
+   */
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  documentNumber?: string | null;
+
+  /**
    * Indica si el usuario está activo.
    * Los usuarios inactivos no pueden hacer login.
    */
