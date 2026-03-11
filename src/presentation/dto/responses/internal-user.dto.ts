@@ -9,6 +9,7 @@ export class InternalUserDto {
   email: string;
   active: boolean;
   position?: string | null;
+  documentType?: string | null;
   documentNumber?: string | null;
   wisproEmail?: string | null;
   createdAt: Date;
@@ -21,6 +22,7 @@ export class InternalUserDto {
 
 export class ActiveUserBasicInfoDto {
   name: string;
+  documentType?: string | null;
   documentNumber?: string | null;
   position?: string | null;
 }

@@ -41,6 +41,29 @@ export class InternalAuthService {
     return crypto.createHash('sha256').update(secret).digest();
   }
 
+  /**
+   * Guarda la sesión Wispro (cookie + CSRF token + expiración) en la DB.
+   * La expiración se toma del campo `expires` de la cookie de Playwright
+   * (Unix timestamp en segundos). Si el valor es -1 (cookie de sesión), no se guarda.
+   */
+  async saveWisproSessionToDb(
+    user: InternalUser,
+    csrfToken: string,
+    sessionCookie: string,
+    cookieExpires?: number,
+  ): Promise<void> {
+    user.wisproApiCsrfToken = csrfToken;
+    user.wisproSessionCookie = sessionCookie;
+    // cookieExpires es Unix timestamp en segundos; -1 significa cookie de sesión sin expiración definida
+    user.wisproSessionExpires = cookieExpires && cookieExpires > 0
+      ? new Date(cookieExpires * 1000)
+      : null;
+    await this.internalUserRepository.save(user);
+    this.logger.log(
+      `Sesión Wispro guardada en DB para usuario ${user.id} (expira: ${user.wisproSessionExpires?.toISOString() ?? 'sin expiración'})`,
+    );
+  }
+
   private encryptWisproPassword(plain: string): string {
     const key = this.getCryptoKey();
     const iv = crypto.randomBytes(16);
@@ -74,6 +97,7 @@ export class InternalAuthService {
     wisproEmail?: string,
     wisproPasswordPlain?: string,
     position?: string,
+    documentType?: string,
     documentNumber?: string,
   ): Promise<InternalUser> {
     const existing = await this.internalUserRepository.findOne({ where: { email } });
@@ -92,6 +116,7 @@ export class InternalAuthService {
         ? this.encryptWisproPassword(wisproPasswordPlain)
         : null,
       position: position || null,
+      documentType: documentType || null,
       documentNumber: documentNumber || null,
       active: true,
     });
@@ -139,6 +164,8 @@ export class InternalAuthService {
             sessionCookie: authResult.sessionCookie.value,
             loginSuccess: true, // Login exitoso
           };
+          // Guardar sesión Wispro en DB para que el token AI pueda usarla
+          await this.saveWisproSessionToDb(user, authResult.csrfToken, authResult.sessionCookie.value, authResult.sessionCookie.expires);
         } else {
           this.logger.warn(
             `Login Wispro fallido para usuario interno ${user.email}: no se obtuvieron credenciales válidas`,
@@ -268,6 +295,9 @@ export class InternalAuthService {
         return { accessToken: null, success: false };
       }
 
+      // Guardar sesión Wispro en DB para que el token AI pueda usarla
+      await this.saveWisproSessionToDb(user, authResult.csrfToken, authResult.sessionCookie.value, authResult.sessionCookie.expires);
+
       // Generar nuevo JWT con las credenciales de Wispro
       const payload: any = {
         sub: user.id,
@@ -355,10 +385,11 @@ export class InternalAuthService {
     }
 
     // Si llegamos aquí, el login fue exitoso
-    // Guardar credenciales cifradas de Wispro
+    // Guardar credenciales cifradas de Wispro y sesión en DB
     user.wisproEmail = wisproEmail;
     user.wisproPasswordEncrypted = this.encryptWisproPassword(wisproPasswordPlain);
     await this.internalUserRepository.save(user);
+    await this.saveWisproSessionToDb(user, authResult.csrfToken, authResult.sessionCookie.value, authResult.sessionCookie.expires);
 
     this.logger.log(
       `Credenciales de Wispro agregadas y validadas correctamente para usuario interno ${internalUserId}`,
@@ -479,6 +510,7 @@ export class InternalAuthService {
       email?: string;
       password?: string;
       position?: string;
+      documentType?: string;
       documentNumber?: string;
     },
   ): Promise<InternalUser> {
@@ -509,6 +541,10 @@ export class InternalAuthService {
       user.position = updates.position;
     }
 
+    if (updates.documentType !== undefined) {
+      user.documentType = updates.documentType;
+    }
+
     if (updates.documentNumber !== undefined) {
       user.documentNumber = updates.documentNumber;
     }
@@ -523,17 +559,51 @@ export class InternalAuthService {
   }
 
   /**
-   * Returns name, documentNumber and position of all active internal users.
+   * Genera un token permanente (tipo 'ai') para un usuario interno.
+   * Este token no expira y está pensado para conectar un asistente de IA.
+   * La sesión de Wispro no se incluye en el JWT, sino que se lee desde la DB
+   * en cada petición (mantenida actualizada por el worker de renovación).
+   *
+   * @param userId - ID del usuario para el que se genera el token
+   * @returns Token JWT permanente
    */
-  async getActiveUsersBasicInfo(): Promise<{ name: string; documentNumber: string | null; position: string | null }[]> {
+  async generatePermanentToken(userId: string): Promise<{ accessToken: string }> {
+    const user = await this.internalUserRepository.findOne({
+      where: { id: userId, active: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`Usuario activo con ID ${userId} no encontrado`);
+    }
+
+    const payload = {
+      sub: user.id,
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      type: 'ai',
+    };
+
+    // Firmar con expiración de 100 años (token efectivamente permanente)
+    const accessToken = this.jwtService.sign(payload, { expiresIn: '36500d' });
+
+    this.logger.log(`Token permanente IA generado para usuario: ${user.name} (${userId})`);
+    return { accessToken };
+  }
+
+  /**
+   * Returns name, documentType, documentNumber and position of all active internal users.
+   */
+  async getActiveUsersBasicInfo(): Promise<{ name: string; documentType: string | null; documentNumber: string | null; position: string | null }[]> {
     const users = await this.internalUserRepository.find({
       where: { active: true },
-      select: ['name', 'documentNumber', 'position'],
+      select: ['name', 'documentType', 'documentNumber', 'position'],
       order: { name: 'ASC' },
     });
 
     return users.map((u) => ({
       name: u.name,
+      documentType: u.documentType ?? null,
       documentNumber: u.documentNumber ?? null,
       position: u.position ?? null,
     }));

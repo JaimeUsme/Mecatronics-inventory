@@ -1,20 +1,28 @@
 /**
  * JWT Strategy
- * 
+ *
  * Estrategia de Passport para validar JWT tokens.
  * Extrae y valida el token JWT de las peticiones.
  */
 import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { jwtConfig } from '../../../config/jwt.config';
 import { JwtPayload } from './jwt-payload.interface';
+import { InternalUser } from '../../persistence/entities/internal-user.entity';
+import { WisproSessionRefreshService } from '../../external/wispro/wispro-session-refresh.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   private readonly logger = new Logger(JwtStrategy.name);
 
-  constructor() {
+  constructor(
+    @InjectRepository(InternalUser)
+    private readonly internalUserRepository: Repository<InternalUser>,
+    private readonly wisproSessionRefreshService: WisproSessionRefreshService,
+  ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -72,6 +80,52 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       return payload;
     }
 
+    // Caso D: token permanente de IA - lee sesión Wispro desde la DB.
+    // Si la sesión no existe o expiró, la renueva en el acto (sin esperar al worker).
+    if (payload.type === 'ai') {
+      let user = await this.internalUserRepository.findOne({
+        where: { id: payload.sub, active: true },
+      });
+
+      if (!user) {
+        this.logger.warn(`Token IA: usuario ${payload.sub} no encontrado o inactivo`);
+        throw new UnauthorizedException('Usuario IA no encontrado o inactivo');
+      }
+
+      const sessionExpired = user.wisproSessionExpires && user.wisproSessionExpires < new Date();
+      const sessionMissing = !user.wisproSessionCookie || !user.wisproApiCsrfToken;
+
+      if (sessionMissing || sessionExpired) {
+        this.logger.warn(
+          `Token IA: sesión ${sessionExpired ? 'expirada' : 'ausente'} para usuario ${payload.sub}. Renovando en el acto...`,
+        );
+
+        const renewed = await this.wisproSessionRefreshService.refreshUserSession(user);
+
+        if (!renewed) {
+          throw new UnauthorizedException(
+            'No se pudo renovar la sesión Wispro del usuario IA. Verifica que tenga credenciales Wispro configuradas.',
+          );
+        }
+
+        // Recargar usuario desde DB con la sesión renovada
+        user = await this.internalUserRepository.findOne({
+          where: { id: payload.sub, active: true },
+        });
+
+        if (!user?.wisproSessionCookie || !user?.wisproApiCsrfToken) {
+          throw new UnauthorizedException('Sesión Wispro renovada pero no disponible aún.');
+        }
+      }
+
+      this.logger.debug(`Token IA válido para usuario: ${payload.sub}`);
+      return {
+        ...payload,
+        csrfToken: user.wisproApiCsrfToken,
+        sessionCookie: user.wisproSessionCookie,
+      };
+    }
+
     // Si tiene credenciales pero loginSuccess no es true, rechazar
     if (
       payload.type === 'internal' &&
@@ -108,4 +162,3 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     throw new UnauthorizedException('Token inválido: faltan credenciales de Wispro');
   }
 }
-

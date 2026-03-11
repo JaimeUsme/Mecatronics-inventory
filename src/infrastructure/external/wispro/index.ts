@@ -7,5 +7,6 @@ export * from './wispro-session.service';
 export * from './wispro-session-manager.service';
 export * from './wispro-api.module';
 export * from './wispro-mobile-api-client.service';
+export * from './wispro-public-api-client.service';
 export * from './types';
 

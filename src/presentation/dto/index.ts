@@ -37,6 +37,9 @@ export * from './requests/get-mobile-orders-request.dto';
 export * from './requests/create-mobile-order-feedback-request.dto';
 export * from './requests/finalize-mobile-order-request.dto';
 export * from './requests/reschedule-mobile-order-request.dto';
+export * from './requests/create-plan-request.dto';
+export * from './requests/get-plans-request.dto';
+export * from './requests/update-plan-request.dto';
 
 // Response DTOs
 export * from './responses/get-employees-response.dto';
@@ -67,5 +70,8 @@ export * from './responses/crew.dto';
 export * from './responses/crew-member.dto';
 export * from './responses/reconfigure-crews-response.dto';
 export * from './responses/reconfigure-preview-response.dto';
+export * from './responses/plan.dto';
+export * from './responses/get-plans-response.dto';
+export * from './responses/wispro-public-plan.dto';
 export { RoleDto } from './responses/employee.dto';
 

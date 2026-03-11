@@ -62,11 +62,38 @@ export class InternalUser {
   documentNumber?: string | null;
 
   /**
+   * Identity document type (optional).
+   */
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  documentType?: string | null;
+
+  /**
    * Indica si el usuario está activo.
    * Los usuarios inactivos no pueden hacer login.
    */
   @Column({ type: 'boolean', default: true })
   active: boolean;
+
+  /**
+   * Cookie de sesión de Wispro almacenada en DB.
+   * El worker la mantiene actualizada automáticamente.
+   */
+  @Column({ type: 'text', nullable: true })
+  wisproSessionCookie?: string | null;
+
+  /**
+   * Fecha de expiración de la sesión de Wispro.
+   * Derivada del campo expires del Set-Cookie de Wispro.
+   */
+  @Column({ type: 'timestamp', nullable: true })
+  wisproSessionExpires?: Date | null;
+
+  /**
+   * CSRF token de Wispro almacenado en DB.
+   * El worker lo mantiene actualizado junto con la cookie de sesión.
+   */
+  @Column({ type: 'varchar', length: 512, nullable: true })
+  wisproApiCsrfToken?: string | null;
 }
 
 

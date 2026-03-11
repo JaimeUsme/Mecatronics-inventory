@@ -50,6 +50,7 @@ export class InternalAuthController {
       dto.wisproEmail,
       dto.wisproPassword,
       dto.position,
+      dto.documentType,
       dto.documentNumber,
     );
     return {
@@ -58,6 +59,7 @@ export class InternalAuthController {
       email: user.email,
       active: user.active ?? true,
       position: user.position,
+      documentType: user.documentType,
       documentNumber: user.documentNumber,
       wisproEmail: user.wisproEmail,
       createdAt: user.createdAt,
@@ -82,6 +84,7 @@ export class InternalAuthController {
         email: user.email,
         active: user.active ?? true,
         position: user.position,
+        documentType: user.documentType,
         documentNumber: user.documentNumber,
         wisproEmail: user.wisproEmail,
         createdAt: user.createdAt,
@@ -254,6 +257,7 @@ export class InternalAuthController {
       email: user.email,
       active: user.active ?? true,
       position: user.position,
+      documentType: user.documentType,
       documentNumber: user.documentNumber,
       wisproEmail: user.wisproEmail,
       createdAt: user.createdAt,
@@ -334,6 +338,7 @@ export class InternalAuthController {
       email: dto.email,
       password: dto.password,
       position: dto.position,
+      documentType: dto.documentType,
       documentNumber: dto.documentNumber,
     });
 
@@ -343,6 +348,7 @@ export class InternalAuthController {
       email: updated.email,
       active: updated.active ?? true,
       position: updated.position,
+      documentType: updated.documentType,
       documentNumber: updated.documentNumber,
       wisproEmail: updated.wisproEmail,
       createdAt: updated.createdAt,
@@ -382,6 +388,7 @@ export class InternalAuthController {
       email: updated.email,
       active: updated.active ?? true,
       position: updated.position,
+      documentType: updated.documentType,
       documentNumber: updated.documentNumber,
       wisproEmail: updated.wisproEmail,
       createdAt: updated.createdAt,
@@ -390,7 +397,7 @@ export class InternalAuthController {
   }
 
   /**
-   * Returns name, documentNumber and position of all active internal users.
+  * Returns name, documentType, documentNumber and position of all active internal users.
    *
    * GET /internal-auth/users/active-info
    *
@@ -401,6 +408,24 @@ export class InternalAuthController {
   @UseGuards(JwtPermissiveGuard)
   async getActiveUsersBasicInfo(): Promise<ActiveUserBasicInfoDto[]> {
     return this.internalAuthService.getActiveUsersBasicInfo();
+  }
+
+  /**
+   * Genera un token permanente (tipo 'ai') para un usuario.
+   * Este token no expira y permite que un asistente de IA haga peticiones al backend.
+   * La sesión de Wispro se lee desde la DB (no viaja en el JWT).
+   *
+   * POST /internal-auth/users/:id/generate-ai-token
+   *
+   * Requiere: Authorization: Bearer <token-interno>
+   */
+  @Post('users/:id/generate-ai-token')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtPermissiveGuard)
+  async generateAiToken(
+    @Param('id') id: string,
+  ): Promise<{ accessToken: string }> {
+    return this.internalAuthService.generatePermanentToken(id);
   }
 }
 

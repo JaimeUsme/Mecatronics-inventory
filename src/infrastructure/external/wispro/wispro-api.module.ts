@@ -12,6 +12,7 @@ import { WisproApiWrapperService } from './wispro-api-wrapper.service';
 import { WisproSessionService } from './wispro-session.service';
 import { WisproSessionManagerService } from './wispro-session-manager.service';
 import { WisproMobileApiClientService } from './wispro-mobile-api-client.service';
+import { WisproPublicApiClientService } from './wispro-public-api-client.service';
 import { InternalUser } from '@infrastructure/persistence/entities';
 import { WisproAutomationModule } from '@infrastructure/automation';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -35,6 +36,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     WisproSessionService,
     WisproSessionManagerService,
     WisproMobileApiClientService,
+    WisproPublicApiClientService,
   ],
   exports: [
     WisproApiClientService,
@@ -42,6 +44,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     WisproSessionService,
     WisproSessionManagerService,
     WisproMobileApiClientService,
+    WisproPublicApiClientService,
   ],
 })
 export class WisproApiModule {}

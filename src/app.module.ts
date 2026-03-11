@@ -5,6 +5,8 @@
  */
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
+import { WisproSessionRefreshModule } from './infrastructure/external/wispro/wispro-session-refresh.module';
 import {
   AuthenticationModule,
   InternalAuthModule,
@@ -12,6 +14,7 @@ import {
   OrdersModule,
   InventoryModule,
   CrewsModule,
+  PlansModule,
   StorageModule,
   MobileModule,
 } from './application/modules';
@@ -25,14 +28,17 @@ import { SharedModule } from './application/modules/shared/shared.module';
       isGlobal: true, // Hace que ConfigModule esté disponible en todos los módulos
       envFilePath: '.env', // Ruta al archivo .env
     }),
+    ScheduleModule.forRoot(), // Habilita el scheduler para el worker de renovación de sesiones
     DatabaseModule, // Módulo de base de datos (TypeORM) - debe ir después de ConfigModule
     SharedModule, // Módulo compartido con servicios globales e interceptores
+    WisproSessionRefreshModule, // Worker que mantiene sesiones Wispro actualizadas en DB
     InternalAuthModule,
     AuthenticationModule,
     EmployeesModule,
     OrdersModule,
     InventoryModule,
     CrewsModule,
+    PlansModule,
     StorageModule,
     MobileModule,
   ],

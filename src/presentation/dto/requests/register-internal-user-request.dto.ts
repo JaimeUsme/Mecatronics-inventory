@@ -22,20 +22,25 @@ export class RegisterInternalUserRequestDto {
   password: string;
 
   /**
-   * Job position or role within the organization (optional).
+   * Job position or role within the organization.
    */
-  @IsOptional()
   @IsString()
   @MaxLength(255)
-  position?: string;
+  position: string;
 
   /**
-   * Identity document number (optional).
+   * Identity document type.
    */
-  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  documentType: string;
+
+  /**
+   * Identity document number.
+   */
   @IsString()
   @MaxLength(100)
-  documentNumber?: string;
+  documentNumber: string;
 
   /**
    * Email de Wispro (opcional). Si se envía junto con wisproPassword,
