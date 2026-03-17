@@ -10,7 +10,6 @@
  * La fecha de expiración se toma del campo `expires` del Set-Cookie de Wispro.
  */
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as crypto from 'crypto';
@@ -30,11 +29,10 @@ export class WisproSessionRefreshService {
   ) {}
 
   /**
-   * Se ejecuta cada 15 minutos.
    * Busca usuarios con credenciales de Wispro cuya sesión haya expirado
    * o esté a menos de 30 minutos de expirar, y la renueva.
+   * Llamar desde Cloud Scheduler vía POST /internal/refresh-wispro-sessions
    */
-  @Cron('0 */15 * * * *') // Cada 15 minutos
   async refreshExpiredSessions(): Promise<void> {
     this.logger.log('Iniciando ciclo de renovación de sesiones Wispro...');
 
