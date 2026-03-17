@@ -40,6 +40,7 @@ export * from './requests/reschedule-mobile-order-request.dto';
 export * from './requests/create-plan-request.dto';
 export * from './requests/get-plans-request.dto';
 export * from './requests/update-plan-request.dto';
+export * from './requests/get-deleted-clients-request.dto';
 
 // Response DTOs
 export * from './responses/get-employees-response.dto';
@@ -73,5 +74,6 @@ export * from './responses/reconfigure-preview-response.dto';
 export * from './responses/plan.dto';
 export * from './responses/get-plans-response.dto';
 export * from './responses/wispro-public-plan.dto';
+export * from './responses/deleted-client.dto';
 export { RoleDto } from './responses/employee.dto';
 

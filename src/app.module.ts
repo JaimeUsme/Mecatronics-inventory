@@ -17,6 +17,7 @@ import {
   PlansModule,
   StorageModule,
   MobileModule,
+  ClientsModule,
 } from './application/modules';
 import { DatabaseModule } from './infrastructure/persistence/database.module';
 import { SharedModule } from './application/modules/shared/shared.module';
@@ -41,6 +42,7 @@ import { SharedModule } from './application/modules/shared/shared.module';
     PlansModule,
     StorageModule,
     MobileModule,
+    ClientsModule,
   ],
   controllers: [],
   providers: [],

@@ -148,6 +148,71 @@ export class WisproApiClientService {
   }
 
   /**
+   * Realiza una petición GET autenticada que retorna HTML (no JSON)
+   * @param endpoint - Endpoint relativo
+   * @param options - Opciones de autenticación
+   * @returns HTML como string
+   */
+  async getHtml(
+    endpoint: string,
+    options?: WisproApiRequestOptions,
+  ): Promise<string> {
+    try {
+      const credentials = this.getCredentials(options);
+
+      if (!credentials) {
+        throw new HttpException(
+          'Credenciales de Wispro no proporcionadas. El token JWT debe contener las credenciales.',
+          HttpStatus.UNAUTHORIZED,
+        );
+      }
+
+      const url = `${this.baseUrl}${endpoint}`;
+      const referer = options?.customReferer || `${this.baseUrl}${endpoint}?locale=es`;
+      const cookieHeader = `_wispro_session_v2=${credentials.sessionCookie}`;
+
+      this.logger.debug(`Making GET (HTML) request to: ${url}`);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Cookie': cookieHeader,
+          'X-CSRF-Token': credentials.csrfToken,
+          'Referer': referer,
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept-Language': 'es-ES,es;q=0.9',
+          'Cache-Control': 'no-cache',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        this.logger.error(`HTML request failed: ${response.status} ${response.statusText}`);
+        this.logger.error(`URL: ${url}`);
+        this.logger.error(`Error details: ${errorText.substring(0, 500)}`);
+        throw new HttpException(
+          `API request failed: ${response.statusText}`,
+          response.status || HttpStatus.INTERNAL_SERVER_ERROR,
+        );
+      }
+
+      const html = await response.text();
+      this.logger.debug(`HTML request successful to: ${endpoint}`);
+      return html;
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      this.logger.error(`Error making HTML request to ${endpoint}:`, error);
+      throw new HttpException(
+        'Failed to communicate with Wispro API',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
    * Realiza una petición PUT autenticada a la API de Wispro
    * @param endpoint - Endpoint relativo
    * @param body - Cuerpo de la petición

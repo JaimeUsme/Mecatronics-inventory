@@ -10,4 +10,5 @@ export * from './crews/crews.module';
 export * from './plans/plans.module';
 export * from './storage/storage.module';
 export * from './mobile/mobile.module';
+export * from './clients/clients.module';
 

@@ -9,4 +9,5 @@ export * from './inventory';
 export * from './plans';
 export * from './storage';
 export * from './mobile';
+export * from './clients';
 

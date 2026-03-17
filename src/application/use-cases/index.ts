@@ -5,4 +5,5 @@ export * from './authentication';
 export * from './employees';
 export * from './orders';
 export * from './plans';
+export * from './clients';
 

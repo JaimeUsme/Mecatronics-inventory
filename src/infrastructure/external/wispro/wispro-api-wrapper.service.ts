@@ -61,6 +61,24 @@ export class WisproApiWrapperService {
   }
 
   /**
+   * Makes a GET request that returns raw HTML
+   * @param endpoint - API endpoint
+   * @param options - Request options
+   * @returns Raw HTML string
+   */
+  async getHtml(
+    endpoint: string,
+    options: WisproApiWrapperOptions,
+  ): Promise<string> {
+    return this.apiClient.getHtml(endpoint, {
+      csrfToken: options.csrfToken,
+      sessionCookie: options.sessionCookie,
+      userId: options.userId,
+      customReferer: options.customReferer,
+    });
+  }
+
+  /**
    * Makes a POST request with automatic token refresh support
    * @param endpoint - API endpoint
    * @param body - Request body
